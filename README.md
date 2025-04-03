@@ -1,2 +1,4 @@
 # MemoAI
-My single HTML/CSS/Javascript App with AI Search
+My single HTML/CSS/Javascript App for Storing notes with AI Search based on Google AI API
+
+
