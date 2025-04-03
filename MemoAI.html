@@ -1091,10 +1091,6 @@
                 }
             });
 
-             importBtnLabel.addEventListener('click', () => {
-                 importFileInput.click();
-             });
-
             importFileInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -1129,6 +1125,7 @@
                                 await addCardDb(cardData);
                             }
                             console.log("Cards imported successfully.");
+							allCardsCache = []; // <--- FIX: Clear cache here
                             await loadCards(); // Reload to display imported cards
                         }
                     } catch (error) {
