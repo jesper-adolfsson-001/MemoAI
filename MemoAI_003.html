@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Card Board</title>
+	<!-- Use EasyMDE CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <style>
+        /* Basic Styling */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            min-height: 100vh; /* Ensure body takes full height for drop */
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button,
+        .file-upload-label {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s ease;
+        }
+
+        button:hover,
+        .file-upload-label:hover {
+            background-color: #0056b3;
+        }
+
+        button.delete-btn {
+            background-color: #dc3545;
+        }
+        button.delete-btn:hover {
+            background-color: #c82333;
+        }
+        button.edit-btn {
+            background-color: #ffc107;
+            color: #333;
+        }
+        button.edit-btn:hover {
+            background-color: #e0a800;
+        }
+
+        .controls-grid {
+            display: grid;
+            /* Define columns: AddBtn | Checkbox | Search(flexible) | ExportBtn | ImportBtn */
+            /* 1fr for search makes it take available space */
+            grid-template-columns: auto auto 1fr auto auto; 
+            /* Define rows: Top row for controls, bottom for status */
+            grid-template-rows: auto auto; 
+            align-items: center; /* Vertically center items within their row */
+            gap: 10px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        /* --- Place items in the grid --- */
+
+        /* Row 1 items */
+        .controls-grid #add-card-btn {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        .controls-grid .checkbox-wrapper {
+            grid-column: 2;
+            grid-row: 1;
+            display: flex; /* Align label and checkbox nicely */
+            align-items: center;
+            gap: 5px; /* Space between label and checkbox */
+        }
+        /* Optional: Style checkbox label text if needed */
+        .controls-grid .checkbox-wrapper label {
+             margin-bottom: 0; /* Override default label margin if any */
+             /* You might want font-size, line-height adjustments here */
+        }
+
+
+        .controls-grid .ai-search-wrapper {
+            grid-column: 3;
+            grid-row: 1; /* Occupy only the first row */
+            /* No longer needs flex direction column here */
+        }
+
+        .controls-grid #export-btn {
+            grid-column: 4;
+            grid-row: 1;
+        }
+
+        .controls-grid .file-upload-label { /* This is the styled button for import */
+            grid-column: 5;
+            grid-row: 1;
+            /* Ensure it aligns well as a button */
+            display: inline-flex; 
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Hidden file input - no grid placement needed */
+        /* #import-file */
+
+        /* --- Content within grid cells --- */
+
+        .ai-search-row {
+            display: flex; /* Keep input and button side-by-side */
+            gap: 5px;
+            width: 100%; /* Ensure it fills the grid column */
+        }
+
+        #ai-search-input {
+            flex-grow: 1; /* Allow input to take available space */
+            padding: 8px 10px; /* Adjust padding to match button height */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            min-width: 100px; /* Prevent it from becoming too small */
+        }
+        /* Ensure search button height matches input */
+        #ai-search-btn {
+            flex-shrink: 0; /* Prevent button from shrinking */
+        }
+
+        /* Row 2 item: AI Status */
+        #ai-status {
+            grid-column: 3; /* Align under the search input */
+            grid-row: 2;    /* Place in the second row */
+            margin-top: 2px; /* Small gap from the input row */
+            padding-left: 2px; /* Slight indent might look good */
+            font-style: italic;
+            color: #555;
+            font-size: 0.85em;
+            /* Remove position/transform styles if any were added */
+        }
+		
+
+        #card-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 10px; /* Add some padding to allow dropping near edges */
+            min-height: 300px; /* Ensure drop zone has some height */
+        }
+
+        /* Card Styling */
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            width: 250px; /* Adjust width as needed */
+            display: flex;
+            flex-direction: column;
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative; /* Needed for absolute positioning if used, good practice */
+        }
+
+        .card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+            transform: scale(1.05);
+        }
+
+        .card-title {
+            margin: 0 0 5px 0; /* Reduced bottom margin */
+            font-size: 1.2em;
+            font-weight: bold;
+            word-wrap: break-word; /* Prevent long titles from overflowing */
+        }
+
+        /* --- NEW: Metadata Styling --- */
+		.meta-fields {
+			display: flex;
+			gap: 10px;
+			justify-content: space-between;
+			flex-wrap: wrap; /* Optional: lets them wrap if small screen */
+		}
+
+		.meta-fields .form-group {
+			flex: 1; /* So they share the space equally */
+			min-width: 150px; /* Prevents them from shrinking too much */
+		}
+
+
+        .card-meta {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .card-meta div {
+            margin-bottom: 3px;
+        }
+        .card-meta strong {
+             color: #333;
+             min-width: 55px; /* Align labels */
+             display: inline-block;
+        }
+        .priority-label {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+        }
+        .priority-high { background-color: #dc3545; }
+        .priority-medium { background-color: #ffc107; color: #333; }
+        .priority-low { background-color: #28a745; }
+        .status-closed { text-decoration: line-through; color: #888; }
+        /* --- End Metadata Styling --- */
+
+
+        .card-content {
+            flex-grow: 1; /* Allows content to fill space */
+            margin-bottom: 15px;
+            word-wrap: break-word; /* Prevent long content from overflowing */
+            overflow-y: auto; /* Add scroll if content too long */
+            max-height: 200px; /* Limit initial height */
+            font-size: 0.95em; /* Slightly smaller font for content */
+        }
+         /* Basic Markdown styling for display */
+        .card-content h1, .card-content h2, .card-content h3 { margin-top: 0.5em; margin-bottom: 0.3em; font-size: 1.1em; }
+        .card-content p { margin: 0.5em 0; }
+        .card-content ul, .card-content ol { margin: 0.5em 0; padding-left: 1.5em; }
+        .card-content code { background-color: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        .card-content pre { background-color: #eee; padding: 10px; border-radius: 3px; overflow-x: auto; font-family: monospace;}
+        .card-content blockquote { border-left: 3px solid #ccc; margin-left: 0; padding-left: 1em; color: #666; }
+        .card-content a { color: #007bff; text-decoration: none; }
+        .card-content a:hover { text-decoration: underline; }
+
+
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 5px;
+            margin-top: auto; /* Pushes actions to the bottom */
+        }
+
+        .card-actions button {
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
+
+        /* Modal Styling */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.5); /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto; /* Adjusted margin for potentially taller modal */
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            max-width: 700px; /* Increased max-width */
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+        }
+
+        .modal-content label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .modal-content input[type="text"],
+        .modal-content input[type="datetime-local"], /* Style new input */
+        .modal-content select, /* Style new select */
+        .modal-content textarea /* Target the underlying textarea EasyMDE uses */
+         {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* Include padding and border in element's total width and height */
+            font-size: 1em; /* Ensure consistent font size */
+        }
+
+        
+	
+		/* Toolbar background */
+		.modal-content .editor-toolbar {
+			background: #a8a8a8;
+			border-bottom: 1px solid #ccc;
+			padding: 4px;
+			border-radius: 5px 5px 0 0;
+		}
+		
+		
+		.editor-toolbar button {
+			color: black; /* or whatever color you want */
+			background-color: transparent;
+			border: none;
+			padding: 5px;
+		}
+		
+		
+        /* Adjust label margin */
+        .modal-content .form-group {
+             margin-bottom: 15px;
+        }
+        .modal-content .form-group label {
+             margin-bottom: 5px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        #cancel-edit-btn {
+            background-color: #6c757d;
+        }
+        #cancel-edit-btn:hover {
+            background-color: #5a6268;
+        }
+
+        /* Hide file input visually but keep it accessible */
+        #import-file {
+            display: none;
+        }
+
+        .drop-indicator {
+            height: 50px; /* Height of the indicator */
+            background-color: rgba(0, 123, 255, 0.2);
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            margin: 10px 0; /* Match card gap / 2 */
+            width: 250px; /* Match card width */
+            flex-shrink: 0; /* Prevent shrinking */
+            box-sizing: border-box;
+        }
+
+    </style>
+</head>
+<body>
+
+	<div class="controls-grid">
+		<button id="add-card-btn">Add New Card</button>
+
+		<div class="checkbox-wrapper">
+			<label for="show-open-only-checkbox">Show<br>Open</label>
+			<input type="checkbox" id="show-open-only-checkbox" checked>
+		</div>
+
+		<div class="ai-search-wrapper">
+			<div class="ai-search-row">
+				<input type="search" id="ai-search-input" placeholder="AI Search Query... (All your notes will be sent to Google AI API; use at your own discretion)">
+				<button id="ai-search-btn">AI Search</button>
+			</div>
+			
+		</div>
+		
+		<span id="ai-status"></span>
+
+		<button id="export-btn">Export Cards (JSON)</button>
+		<label for="import-file" class="file-upload-label">Import Cards (JSON)</label>
+		<input type="file" id="import-file" accept=".json">
+	</div>
+
+    <div id="card-container">
+        <!-- Cards will be loaded here -->
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Edit Card</h2>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label for="edit-title">Title:</label>
+                    <input type="text" id="edit-title" required>
+                </div>
+                <!-- NEW Metadata Fields -->
+				<div class="meta-fields">
+					<div class="form-group">
+						<label for="edit-created-at">Date Created:</label>
+						<input type="datetime-local" id="edit-created-at">
+					</div>
+					 <div class="form-group">
+						<label for="edit-status">Status:</label>
+						<select id="edit-status">
+							<option value="Open">Open</option>
+							<option value="Closed">Closed</option>
+						</select>
+					</div>
+					 <div class="form-group">
+						<label for="edit-priority">Priority:</label>
+						<select id="edit-priority">
+							<option value="Low">Low</option>
+							<option value="Medium" selected>Medium</option> <!-- Default selected -->
+							<option value="High">High</option>
+						</select>
+					</div>
+				</div>
+                <!-- End NEW Fields -->
+                <div class="form-group">
+                    <label for="edit-markdown">Content (Markdown):</label>
+                    <textarea id="edit-markdown"></textarea> <!-- EasyMDE will attach here -->
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-edit-btn">Cancel</button>
+                    <button type="submit" id="save-card-btn">Save Card</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Card Template -->
+    <template id="card-template">
+        <div class="card" draggable="true">
+            <h3 class="card-title"></h3>
+            <!-- NEW: Metadata Display Area -->
+            <div class="card-meta">
+                <div class="card-created"><strong>Created:</strong> <span></span></div>
+                <div class="card-status"><strong>Status:</strong> <span></span></div>
+                <div class="card-priority"><strong>Priority:</strong> <span></span></div>
+            </div>
+            <!-- End Metadata -->
+            <div class="card-content"></div>
+            <div class="card-actions">
+                <button class="edit-btn">Edit</button>
+                <button class="delete-btn">Delete</button>
+            </div>
+        </div>
+    </template>
+
+    <!-- EasyMDE JS -->
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <!-- Marked JS (for rendering Markdown display) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+	<script src="MemoAI_CONFIG.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dbName = 'MarkdownCardsDB';
+            const storeName = 'cards';
+            let db;
+            let easyMDEInstance = null;
+            let draggedItem = null;
+            let dropIndicator = null;
+
+            let originalCardDataBeforeEdit = null; // << NEW: To store original data
+
+            const cardContainer = document.getElementById('card-container');
+            const addCardBtn = document.getElementById('add-card-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const importBtnLabel = document.querySelector('.file-upload-label'); // Target the label
+            const importFileInput = document.getElementById('import-file');
+            const cardTemplate = document.getElementById('card-template');
+
+            // Modal elements
+            const editModal = document.getElementById('edit-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const editForm = document.getElementById('edit-form');
+            const editIdInput = document.getElementById('edit-id');
+            const editTitleInput = document.getElementById('edit-title');
+            const editMarkdownTextarea = document.getElementById('edit-markdown');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            const saveCardBtn = document.getElementById('save-card-btn'); // Get save button
+            // NEW Modal field elements
+            const editCreatedAtInput = document.getElementById('edit-created-at');
+            const editStatusSelect = document.getElementById('edit-status');
+            const editPrioritySelect = document.getElementById('edit-priority');
+			
+			// **** START NEW CHECKBOX VARIABLE ****
+            const showOpenOnlyCheckbox = document.getElementById('show-open-only-checkbox');
+            // **** END NEW CHECKBOX VARIABLE ****
+			
+			
+			// **** START NEW AI SEARCH VARIABLES ****
+            const GEMINI_API_KEY = CONFIG.GEMINI_API_KEY; // <--- PASTE YOUR GEMINI API KEY HERE
+			const GEMINI_MODEL = CONFIG.GEMINI_MODEL; // Or other suitable model e.g., gemini-pro
+			const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+            // const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+            const aiSearchInput = document.getElementById('ai-search-input');
+            const aiSearchBtn = document.getElementById('ai-search-btn');
+            const aiStatus = document.getElementById('ai-status'); // Optional status element
+            let allCardsCache = []; // Cache for filtering
+            // **** END NEW AI SEARCH VARIABLES ****
+
+
+            // --- IndexedDB Functions ---
+
+            function openDb() {
+                return new Promise((resolve, reject) => {
+                    // Increment version if schema changes significantly,
+                    // but just adding fields to objects often doesn't require it.
+                    const request = indexedDB.open(dbName, 1);
+
+                    request.onupgradeneeded = (event) => {
+                        const dbInstance = event.target.result;
+                        if (!dbInstance.objectStoreNames.contains(storeName)) {
+                             const store = dbInstance.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
+                            store.createIndex('order', 'order', { unique: false });
+                             // You could add indexes for new fields here if needed for searching/sorting
+                             // store.createIndex('status', 'status', { unique: false });
+                             // store.createIndex('priority', 'priority', { unique: false });
+                             // store.createIndex('createdAt', 'createdAt', { unique: false });
+                            console.log('IndexedDB store created.');
+                        }
+                        // If updating structure in future versions, add logic here based on event.oldVersion
+                    };
+
+                    request.onsuccess = (event) => {
+                        db = event.target.result;
+                        console.log('IndexedDB opened successfully.');
+                        resolve(db);
+                    };
+
+                    request.onerror = (event) => {
+                        console.error('IndexedDB error:', event.target.errorCode);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            function getStore(mode = 'readonly') {
+                if (!db) {
+                    console.error("DB not initialized!");
+                    return openDb().then(dbInstance => dbInstance.transaction(storeName, mode).objectStore(storeName));
+                }
+                 return Promise.resolve(db.transaction(storeName, mode).objectStore(storeName));
+            }
+
+            async function addCardDb(card) {
+                // Ensure required fields + new fields are present
+                const cardToAdd = {
+                    title: card.title || 'Untitled',
+                    text: card.text || '',
+                    order: typeof card.order === 'number' ? card.order : 0,
+                    createdAt: card.createdAt || new Date().toISOString(), // Default on add
+                    status: card.status || 'Open', // Default on add
+                    priority: card.priority || 'Medium' // Default on add
+                };
+                const store = await getStore('readwrite');
+                return new Promise((resolve, reject) => {
+                    const request = store.add(cardToAdd);
+                    request.onsuccess = event => resolve(event.target.result); // Result is the new key
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+             async function getAllCardsDb() {
+                const store = await getStore('readonly');
+                const index = store.index('order');
+                return new Promise((resolve, reject) => {
+                    const request = index.getAll();
+                    request.onsuccess = event => {
+                        const sortedCards = event.target.result.sort((a, b) => (a.order || 0) - (b.order || 0));
+                        // **** NEW: Update cache when fetching all cards ****
+                        allCardsCache = sortedCards;
+                        resolve(sortedCards);
+                    }
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+             async function getCardDb(id) {
+                 id = Number(id);
+                 if (isNaN(id)) return Promise.reject("Invalid ID format");
+
+                const store = await getStore('readonly');
+                return new Promise((resolve, reject) => {
+                    const request = store.get(id);
+                    request.onsuccess = event => resolve(event.target.result); // Result might be undefined if not found
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+             async function updateCardDb(card) {
+                if (!card || typeof card.id === 'undefined') {
+                     return Promise.reject("Invalid card data for update: Missing ID");
+                }
+                // Ensure ID is a number
+                card.id = Number(card.id);
+                if (isNaN(card.id)) return Promise.reject("Invalid ID format for update");
+
+                 // Ensure default values for new fields if they are somehow missing
+                 const cardToUpdate = {
+                    ...card, // Spread existing properties
+                    createdAt: card.createdAt || new Date().toISOString(), // Should exist, but fallback
+                    status: card.status || 'Open',
+                    priority: card.priority || 'Medium'
+                 };
+
+
+                const store = await getStore('readwrite');
+                return new Promise((resolve, reject) => {
+                    const request = store.put(cardToUpdate); // put handles update
+                    request.onsuccess = event => resolve(event.target.result);
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+             async function deleteCardDb(id) {
+                 id = Number(id);
+                 if (isNaN(id)) return Promise.reject("Invalid ID format for delete");
+
+                 const store = await getStore('readwrite');
+                return new Promise((resolve, reject) => {
+                    const request = store.delete(id);
+                    request.onsuccess = () => resolve();
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+            async function clearAllCardsDb() {
+                const store = await getStore('readwrite');
+                return new Promise((resolve, reject) => {
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = event => reject(event.target.error);
+                });
+            }
+
+             // --- Helper Function ---
+             // Formats an ISO date string for display (e.g., "1/15/2024, 10:30 AM")
+             // Returns 'N/A' if the date is invalid
+            function formatDisplayDate(isoString) {
+                if (!isoString) return 'N/A';
+                try {
+                    const date = new Date(isoString);
+                     // Check if the date is valid
+                    if (isNaN(date.getTime())) return 'Invalid Date';
+                    return date.toLocaleString(undefined, { // Use browser's locale
+                        year: 'numeric', month: 'numeric', day: 'numeric',
+                        hour: 'numeric', minute: '2-digit' // Adjust options as needed
+                    });
+                } catch (e) {
+                    console.error("Error formatting date:", isoString, e);
+                    return 'Error';
+                }
+            }
+
+            // Formats an ISO string (or Date object) into YYYY-MM-DDTHH:mm for datetime-local input
+            // Returns an empty string if the input is invalid
+            function formatInputDateTimeLocal(dateSource) {
+                if (!dateSource) return "";
+                try {
+                    const date = (dateSource instanceof Date) ? dateSource : new Date(dateSource);
+                    if (isNaN(date.getTime())) return ""; // Invalid date
+
+                    // Pad single digit month/day/hour/minute with leading zero
+                    const pad = (num) => num.toString().padStart(2, '0');
+
+                    const year = date.getFullYear();
+                    const month = pad(date.getMonth() + 1); // Month is 0-indexed
+                    const day = pad(date.getDate());
+                    const hours = pad(date.getHours());
+                    const minutes = pad(date.getMinutes());
+
+                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                } catch (e) {
+                    console.error("Error formatting for datetime-local:", dateSource, e);
+                    return "";
+                }
+            }
+
+
+            // --- Card Rendering ---
+            function renderCard(cardData) {
+                const cardClone = cardTemplate.content.cloneNode(true);
+                const cardElement = cardClone.querySelector('.card');
+                const titleElement = cardElement.querySelector('.card-title');
+                const contentElement = cardElement.querySelector('.card-content');
+                const editBtn = cardElement.querySelector('.edit-btn');
+                const deleteBtn = cardElement.querySelector('.delete-btn');
+                // NEW Metadata elements
+                const createdAtEl = cardElement.querySelector('.card-created span');
+                const statusEl = cardElement.querySelector('.card-status span');
+                const priorityEl = cardElement.querySelector('.card-priority span');
+
+
+                cardElement.dataset.id = cardData.id;
+                cardElement.dataset.order = cardData.order;
+                titleElement.textContent = cardData.title || 'Untitled'; // Default title
+
+                // Populate Metadata
+                createdAtEl.textContent = formatDisplayDate(cardData.createdAt);
+                const status = cardData.status || 'Open'; // Default status
+                statusEl.textContent = status;
+                 // Add class if closed for potential styling (like line-through)
+                if (status.toLowerCase() === 'closed') {
+                    cardElement.classList.add('status-closed');
+                     // Optional: Dim the card slightly or add other visual cues
+                    // cardElement.style.opacity = '0.7';
+                } else {
+                     cardElement.classList.remove('status-closed');
+                     // cardElement.style.opacity = '1';
+                }
+
+
+                const priority = (cardData.priority || 'Medium').toLowerCase(); // Default priority, lowercase for class
+                priorityEl.innerHTML = `<span class="priority-label priority-${priority}">${cardData.priority || 'Medium'}</span>`;
+
+
+                // Render Markdown content
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    marked.use({ breaks: true, gfm: true });
+                    contentElement.innerHTML = marked.parse(cardData.text || '');
+                } else {
+                    console.error("Marked.js not loaded correctly!");
+                    contentElement.textContent = cardData.text || ''; // Fallback
+                }
+
+
+                // Add event listeners
+                editBtn.addEventListener('click', () => handleEdit(cardData.id));
+                deleteBtn.addEventListener('click', () => handleDelete(cardData.id));
+
+                // Drag and Drop listeners
+                cardElement.addEventListener('dragstart', handleDragStart);
+                cardElement.addEventListener('dragend', handleDragEnd);
+                cardElement.addEventListener('dragenter', handleDragEnter);
+                cardElement.addEventListener('dragleave', handleDragLeave);
+
+                cardContainer.appendChild(cardElement);
+                return cardElement;
+            }
+
+			async function loadCards(filterIds = null) {
+                cardContainer.innerHTML = ''; // Clear existing cards
+                try {
+                    // Fetch fresh data or use cache - getAllCardsDb updates the cache
+                    let cardsToRender = allCardsCache.length > 0 && filterIds === null ? allCardsCache : await getAllCardsDb();
+
+                    // **** NEW: Apply "Show Only Open" filter ****
+                    if (showOpenOnlyCheckbox.checked) {
+                        cardsToRender = cardsToRender.filter(card => card.status === 'Open');
+                        console.log(`Filtering for Open status. ${cardsToRender.length} cards remain.`);
+                    } else {
+                        console.log("Not filtering for Open status. Showing all.");
+                    }
+                    // **** END NEW FILTER ****
+
+
+                    let aiFilteredCards = cardsToRender; // Start with the (potentially) Open-filtered list
+
+                    if (filterIds !== null && Array.isArray(filterIds)) {
+                        // Filter based on the IDs provided by AI search
+                        // Operate on the cardsToRender list which might already be filtered by the checkbox
+                        const filterIdSet = new Set(filterIds.map(id => Number(id)));
+                        aiFilteredCards = cardsToRender.filter(card => filterIdSet.has(card.id));
+
+                        // Update status message based on AI results *after* checkbox filter
+                        if(aiFilteredCards.length === 0 && filterIds.length > 0) {
+                           console.warn("AI Search returned IDs, but no matching cards found after checkbox filter.");
+						   
+                           aiStatus.textContent = `AI found ${filterIds.length} potential match(es), but none are currently visible${showOpenOnlyCheckbox.checked ? " (with 'Open Only' checked)" : ""}.`;
+						   
+                        } else if (aiFilteredCards.length === 0 && filterIds.length === 0){
+                           aiStatus.textContent = `No cards matched your query${showOpenOnlyCheckbox.checked ? " (within 'Open Only' cards)" : ""}.`;
+                        } else {
+                           aiStatus.textContent = `Showing ${aiFilteredCards.length} matching card(s)${showOpenOnlyCheckbox.checked ? " (within 'Open Only' cards)" : ""}.`;
+                        }
+                    } else if (filterIds === null) {
+                        // If clearing filter or initial load, show cards based on checkbox
+                         aiStatus.textContent = ''; // Clear status
+                    }
+
+                    // Render the final list (filtered by checkbox AND potentially by AI)
+                    if (aiFilteredCards.length === 0 ) {
+                         // Display a message if no cards match the combined filters
+                         const message = filterIds !== null
+                             ? `No cards match the current filters${showOpenOnlyCheckbox.checked ? ' (Open Only + AI Search)' : ' (AI Search)'}.`
+                             : `No cards to display${showOpenOnlyCheckbox.checked ? ' (with status Open)' : ''}. Add one!`;
+                         cardContainer.innerHTML = `<p style="color: #666;">${message}</p>`;
+                    } else {
+                        aiFilteredCards.forEach(card => renderCard(card));
+                    }
+                } catch (error) {
+                    console.error("Error loading/filtering cards:", error);
+                    alert("Could not load cards from the database.");
+                     aiStatus.textContent = 'Error loading cards.';
+                }
+            }
+
+            // --- Modal Handling ---
+			
+            function openEditModal(card = null) {
+                // Clear previous original data state
+                originalCardDataBeforeEdit = null; // << NEW: Reset state
+
+                if (easyMDEInstance) {
+                    easyMDEInstance.toTextArea();
+                    easyMDEInstance = null;
+                }
+
+                if (card) {
+                    // Editing existing card
+                    modalTitle.textContent = "Edit Card";
+                    editIdInput.value = card.id;
+                    editTitleInput.value = card.title || '';
+                    editMarkdownTextarea.value = card.text || '';
+                    editCreatedAtInput.value = formatInputDateTimeLocal(card.createdAt || new Date());
+                    editStatusSelect.value = card.status || 'Open';
+                    editPrioritySelect.value = card.priority || 'Medium';
+
+                    // << NEW: Store original data for comparison
+                    originalCardDataBeforeEdit = {
+                        id: card.id, // Keep id for context, though not compared
+                        title: card.title || '',
+                        text: card.text || '',
+                        createdAt: formatInputDateTimeLocal(card.createdAt || new Date()), // Store formatted value
+                        status: card.status || 'Open',
+                        priority: card.priority || 'Medium'
+                    };
+
+                } else {
+                    // Adding new card
+                    modalTitle.textContent = "Add New Card";
+                    editIdInput.value = '';
+                    editTitleInput.value = '';
+                    editMarkdownTextarea.value = '';
+                    editCreatedAtInput.value = formatInputDateTimeLocal(new Date());
+                    editStatusSelect.value = 'Open';
+                    editPrioritySelect.value = 'Medium';
+
+                    // << NEW: Mark as new card (original state is 'empty/default')
+                    originalCardDataBeforeEdit = { isNew: true };
+                }
+
+                editModal.style.display = 'block';
+                try {
+                    easyMDEInstance = new EasyMDE({
+                        element: editMarkdownTextarea,
+                        // ... (rest of EasyMDE options)
+						spellChecker: false,
+                        status: false,
+						placeholder: "Start typing to edit...",
+                        renderingConfig: {
+                             singleLineBreaks: true, // Render single line breaks as <br>
+                             codeSyntaxHighlighting: true, // If you want code highlighting
+                        },
+                        toolbar: [
+							"bold", "italic", "heading", "|",
+							"quote", "unordered-list", "ordered-list", "|",
+							"link", "image", "table", "|", // Added table
+							"preview", "side-by-side", "fullscreen", "|",
+							"guide" // Link to Markdown guide
+						],
+                    });
+                } catch (error) {
+                     console.error("Failed to initialize EasyMDE:", error);
+                     alert("Error initializing the markdown editor. Please check the console.");
+                }
+
+                editTitleInput.focus();
+            }
+			
+			// << NEW: Function to check if form data has changed
+            function hasUnsavedChanges() {
+                if (!originalCardDataBeforeEdit) return false; // Should not happen if modal is open
+
+                const currentTitle = editTitleInput.value.trim();
+                const currentText = easyMDEInstance ? easyMDEInstance.value() : editMarkdownTextarea.value;
+                const currentCreatedAt = editCreatedAtInput.value; // Compare the input's string value
+                const currentStatus = editStatusSelect.value;
+                const currentPriority = editPrioritySelect.value;
+
+                if (originalCardDataBeforeEdit.isNew) {
+                    // For a new card, check if anything significant was entered
+                    // (Ignoring default date/status/priority unless they *differ* from the initial defaults,
+                    // but simpler to just check title/text)
+                    return currentTitle !== '' || currentText.trim() !== '';
+                } else {
+                    // For an existing card, compare with stored original values
+                    const titleChanged = currentTitle !== originalCardDataBeforeEdit.title;
+                    const textChanged = currentText !== originalCardDataBeforeEdit.text;
+                    const createdAtChanged = currentCreatedAt !== originalCardDataBeforeEdit.createdAt;
+                    const statusChanged = currentStatus !== originalCardDataBeforeEdit.status;
+                    const priorityChanged = currentPriority !== originalCardDataBeforeEdit.priority;
+
+                    return titleChanged || textChanged || createdAtChanged || statusChanged || priorityChanged;
+                }
+            }
+
+            // << NEW: Function to handle close request (checks for changes)
+            function requestCloseModal() {
+                if (hasUnsavedChanges()) {
+                    const discard = confirm("You have unsaved changes. Discard them?");
+                    if (discard) {
+                        closeEditModal(); // Close only if user confirms discard
+                    }
+                    // If user clicks 'Cancel' on the confirm dialog, do nothing (modal stays open)
+                } else {
+                    closeEditModal(); // No changes, close directly
+                }
+            }
+			
+			
+
+            function closeEditModal() {
+                if (easyMDEInstance) {
+                    try {
+                        easyMDEInstance.toTextArea(); // Clean up EasyMDE
+                    } catch (e) { console.error("Error cleaning up EasyMDE:", e); }
+                    easyMDEInstance = null;
+                }
+                editModal.style.display = 'none';
+                // Clear form fields (already done in original code, kept for clarity)
+                editIdInput.value = '';
+                editTitleInput.value = '';
+                editMarkdownTextarea.value = '';
+                editCreatedAtInput.value = '';
+                editStatusSelect.value = 'Open';
+                editPrioritySelect.value = 'Medium';
+
+                // << NEW: Clear the stored original data
+                originalCardDataBeforeEdit = null;
+            }
+
+            // --- Event Handlers ---
+            addCardBtn.addEventListener('click', () => openEditModal());
+            cancelEditBtn.addEventListener('click', requestCloseModal);
+
+             // << MODIFIED: Use requestCloseModal for clicking outside
+            window.addEventListener('click', (event) => {
+                if (event.target === editModal) {
+                    requestCloseModal();
+                }
+            });
+
+            // Submit handler remains the same - it saves changes, then closes normally
+            editForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                saveCardBtn.disabled = true;
+                saveCardBtn.textContent = 'Saving...';
+
+                const id = editIdInput.value;
+                const title = editTitleInput.value.trim();
+                const text = easyMDEInstance ? easyMDEInstance.value() : editMarkdownTextarea.value;
+                let createdAtISO = null;
+                try {
+                    if (editCreatedAtInput.value) {
+                         createdAtISO = new Date(editCreatedAtInput.value).toISOString();
+                    } else {
+                        createdAtISO = new Date().toISOString();
+                    }
+                } catch (e) {
+                     console.error("Invalid date from input, using current time.", e)
+                     createdAtISO = new Date().toISOString();
+                }
+                const status = editStatusSelect.value;
+                const priority = editPrioritySelect.value;
+                let currentOrder;
+
+                try {
+                     if (id) {
+                        const existingCard = await getCardDb(id);
+                        if (!existingCard) throw new Error(`Card with ID ${id} not found for update.`);
+                        currentOrder = existingCard.order;
+                        const cardData = {
+                             id: Number(id), title, text, order: currentOrder,
+                             createdAt: createdAtISO, status, priority
+                        };
+                        await updateCardDb(cardData);
+                        console.log("Card updated:", cardData);
+                    } else {
+                        const cards = await getAllCardsDb();
+                        const maxOrder = cards.reduce((max, card) => Math.max(max, card.order || 0), -1);
+                        currentOrder = maxOrder + 1;
+                        const cardData = {
+                            title, text, order: currentOrder,
+                            createdAt: createdAtISO, status, priority
+                         };
+                        const newId = await addCardDb(cardData);
+                        console.log("Card added with ID:", newId, cardData);
+                    }
+
+                    // << IMPORTANT: Call the *actual* close function after successful save
+                    closeEditModal();
+                    allCardsCache = []; // Clear the cache
+                    await loadCards();
+                } catch (error) {
+                    console.error("Error saving card:", error);
+                    alert(`Failed to save card: ${error.message}`);
+                } finally {
+                    saveCardBtn.disabled = false;
+                    saveCardBtn.textContent = 'Save Card';
+                }
+            });
+
+            async function handleEdit(id) {
+                try {
+                    const card = await getCardDb(id);
+                    if (card) {
+                        openEditModal(card);
+                    } else {
+                        console.error("Card not found for editing:", id);
+                        alert("Could not find the card to edit.");
+                        await loadCards(); // Reload to ensure consistency if card vanished
+                    }
+                } catch (error) {
+                    console.error("Error fetching card for edit:", error);
+                    alert("Failed to load card data for editing.");
+                }
+            }
+
+            async function handleDelete(id) {
+                if (confirm('Are you sure you want to delete this card?')) {
+                    try {
+                        await deleteCardDb(id);
+                        console.log("Card deleted:", id);
+                        const cardElement = cardContainer.querySelector(`.card[data-id="${id}"]`);
+                        if (cardElement) {
+                            cardElement.remove();
+                            // Optional: Recalculate order immediately after delete if needed
+                            // but drag/drop handles reordering anyway.
+                        }
+                        // No loadCards() needed if just removing element
+                    } catch (error) {
+                        console.error("Error deleting card:", error);
+                        alert("Failed to delete card.");
+                    }
+                }
+            }
+
+            // --- Import/Export ---
+            exportBtn.addEventListener('click', async () => {
+                try {
+                    const cards = await getAllCardsDb();
+                    // Ensure all exported cards have the new fields (even if undefined/null)
+                    const cardsToExport = cards.map(c => ({
+                         id: c.id,
+                         title: c.title,
+                         text: c.text,
+                         order: c.order,
+                         createdAt: c.createdAt,
+                         status: c.status,
+                         priority: c.priority
+                    }));
+                    const dataStr = JSON.stringify(cardsToExport, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'cards-export.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    console.log("Cards exported.");
+                } catch (error) {
+                    console.error("Error exporting cards:", error);
+                    alert("Failed to export cards.");
+                }
+            });
+
+             importBtnLabel.addEventListener('click', () => {
+                 importFileInput.click();
+             });
+
+            importFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const importedCards = JSON.parse(e.target.result);
+
+                        if (!Array.isArray(importedCards)) {
+                            throw new Error("Imported file is not a valid card array.");
+                        }
+                        // Validate basic structure (allow missing new fields for compatibility)
+                        const isValid = importedCards.every(card =>
+                            typeof card === 'object' &&
+                            card !== null &&
+                            typeof card.title === 'string' &&
+                            typeof card.text === 'string' &&
+                            typeof card.order === 'number'
+                        );
+                        if (!isValid) {
+                             throw new Error("Imported data has invalid basic card structure (missing title, text, or order).");
+                        }
+
+                        if (confirm('Importing will replace all current cards. Are you sure?')) {
+                            await clearAllCardsDb();
+                            // Add cards one by one, letting addCardDb handle defaults for potentially missing new fields
+                            for (const card of importedCards) {
+                                // Remove 'id' before adding so DB generates new ones
+                                const { id, ...cardData } = card;
+                                // addCardDb will provide defaults for createdAt, status, priority if missing
+                                await addCardDb(cardData);
+                            }
+                            console.log("Cards imported successfully.");
+                            await loadCards(); // Reload to display imported cards
+                        }
+                    } catch (error) {
+                        console.error("Error importing cards:", error);
+                        alert(`Failed to import cards: ${error.message}`);
+                    } finally {
+                        importFileInput.value = null;
+                    }
+                };
+                reader.onerror = (error) => {
+                     console.error("Error reading file:", error);
+                     alert("Failed to read the import file.");
+                     importFileInput.value = null;
+                };
+                reader.readAsText(file);
+            });
+
+
+             // --- Drag and Drop (No changes needed here for metadata) ---
+
+             function createDropIndicator() {
+                 if (!dropIndicator) {
+                     dropIndicator = document.createElement('div');
+                     dropIndicator.classList.add('drop-indicator');
+                 }
+                 return dropIndicator;
+             }
+
+             function handleDragStart(e) {
+                 draggedItem = e.target;
+                 setTimeout(() => {
+                     if(draggedItem) draggedItem.classList.add('dragging');
+                 }, 0);
+                 e.dataTransfer.effectAllowed = 'move';
+                 e.dataTransfer.setData('text/plain', draggedItem.dataset.id);
+             }
+
+             function handleDragEnd(e) {
+                 if (draggedItem && draggedItem.classList.contains('dragging')) {
+                     draggedItem.classList.remove('dragging');
+                 }
+                 removeDropIndicator();
+                 draggedItem = null;
+             }
+
+             cardContainer.addEventListener('dragover', (e) => {
+                 e.preventDefault();
+                 e.dataTransfer.dropEffect = 'move';
+
+                 const indicator = createDropIndicator();
+                 const afterElement = getDragAfterElement(cardContainer, e.clientY);
+
+                 if (afterElement == null) {
+                     if (!cardContainer.contains(indicator) || cardContainer.lastElementChild !== indicator) {
+                        removeDropIndicator();
+                        cardContainer.appendChild(indicator);
+                     }
+                 } else {
+                     if (!cardContainer.contains(indicator) || afterElement !== indicator.nextElementSibling) {
+                        removeDropIndicator();
+                        cardContainer.insertBefore(indicator, afterElement);
+                     }
+                 }
+             });
+
+              function handleDragEnter(e) {
+                e.preventDefault();
+             }
+
+              function handleDragLeave(e) {
+                 // Basic removal check (less critical now with dragover handling)
+                  if (e.target === cardContainer && !cardContainer.contains(e.relatedTarget)) {
+                    // removeDropIndicator(); // Let dragover manage insertion/removal mostly
+                  }
+             }
+
+             cardContainer.addEventListener('drop', async (e) => {
+                 e.preventDefault();
+                 removeDropIndicator();
+
+                 if (!draggedItem) return;
+
+                 const afterElement = getDragAfterElement(cardContainer, e.clientY);
+
+                 // Move the draggedItem in the DOM
+                 if (afterElement == null) {
+                    cardContainer.appendChild(draggedItem);
+                } else {
+                    cardContainer.insertBefore(draggedItem, afterElement);
+                }
+
+                 // Update Order in IndexedDB
+                 const cardsInNewOrder = Array.from(cardContainer.querySelectorAll('.card:not(.dragging):not(.drop-indicator)'));
+
+                 const updatePromises = cardsInNewOrder.map(async (cardEl, index) => {
+                     const cardId = Number(cardEl.dataset.id);
+                     try {
+                         const cardData = await getCardDb(cardId);
+                         if (cardData) {
+                             if (cardData.order !== index) { // Only update if order actually changed
+                                cardData.order = index;
+                                return updateCardDb(cardData);
+                             } else {
+                                return Promise.resolve(); // No change needed
+                             }
+                         } else {
+                              console.warn("Card data not found for ID during reorder:", cardId);
+                              return Promise.resolve();
+                         }
+                     } catch (error) {
+                         console.error("Error fetching/updating card during reorder:", cardId, error);
+                         return Promise.reject(error); // Propagate error for Promise.all
+                     }
+                 });
+
+                 try {
+                     await Promise.all(updatePromises);
+                     console.log("Card order updated in IndexedDB.");
+                     // Update dataset order attribute on elements for consistency (optional but good practice)
+                      cardsInNewOrder.forEach((cardEl, index) => {
+                          cardEl.dataset.order = index;
+                      });
+
+                 } catch (error) {
+                     console.error("Failed to update card order in DB:", error);
+                     alert("Error saving new card order. Please refresh and try again.");
+                     await loadCards(); // Reload to reflect actual DB state on error
+                 } finally {
+                      // Ensure dragging class is removed even if drop logic had issues
+                      if (draggedItem && draggedItem.classList.contains('dragging')) {
+                          draggedItem.classList.remove('dragging');
+                     }
+                     draggedItem = null;
+                 }
+             });
+
+
+             function getDragAfterElement(container, y) {
+                 const draggableElements = [...container.querySelectorAll('.card:not(.dragging):not(.drop-indicator)')];
+
+                 return draggableElements.reduce((closest, child) => {
+                     const box = child.getBoundingClientRect();
+                     const offset = y - box.top - box.height / 2;
+                     if (offset < 0 && offset > closest.offset) {
+                         return { offset: offset, element: child };
+                     } else {
+                         return closest;
+                     }
+                 }, { offset: Number.NEGATIVE_INFINITY }).element;
+             }
+
+            function removeDropIndicator() {
+                 if (dropIndicator && dropIndicator.parentNode) {
+                     dropIndicator.parentNode.removeChild(dropIndicator);
+                 }
+            }
+			
+			// --- **** NEW AI SEARCH FUNCTIONS **** ---
+
+            function showLoading(isLoading) {
+                if (isLoading) {
+                    aiSearchBtn.disabled = true;
+                    aiSearchBtn.textContent = 'Searching...';
+                    aiStatus.textContent = 'Searching with AI...';
+                } else {
+                    aiSearchBtn.disabled = false;
+                    aiSearchBtn.textContent = 'AI Search';
+                    // Status will be updated by loadCards or error handling
+                }
+            }
+
+            async function callGeminiApi(query, cardsData) {
+                 if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY_HERE') {
+                     throw new Error("Gemini API key is missing. Please add it to the script.");
+                 }
+
+                const cardsJsonString = JSON.stringify(cardsData, null, 2); // Pretty print for readability if needed
+
+                // Construct a more robust prompt
+                const prompt = `
+Context:
+You are an AI assistant helping to search through a list of notes (cards). Below is a JSON array representing all the available cards. Each card has an id, title, creation date (createdAt), status (Open/Closed), priority (Low/Medium/High), and markdown text content.
+
+Card Data:
+${cardsJsonString}
+
+User Query:
+"${query}"
+
+Task:
+Analyze the user query and the provided card data. Identify which cards match the user's query based on *any* of their fields (id, title, createdAt, status, priority, text). Consider the meaning and context. For date queries, interpret relative dates (e.g., 'last week', 'before 2024') based on the current date if necessary, comparing against the 'createdAt' field (which is in ISO 8601 format).
+
+Output Format:
+Return *only* a valid JSON array containing the integer \`id\`s of the matching cards. For example: [1, 5, 12]
+If no cards match, return an empty array: []
+Do not include any other text, explanations, or markdown formatting in your response. Just the JSON array of IDs.
+                `;
+
+                try {
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                             // Optional: Add safety settings if needed
+                             // safetySettings: [
+                             //   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+                             //   // Add others as needed
+                             // ],
+                             generationConfig: {
+                                // Adjust temperature or other parameters if desired
+                                // temperature: 0.7,
+                                responseMimeType: "application/json", // Request JSON output directly
+                             }
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        console.error("Gemini API Error Response:", errorBody);
+                        throw new Error(`API request failed with status ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Log the raw response for debugging
+                    console.log("Gemini API Raw Response:", JSON.stringify(data, null, 2));
+
+                    // Extract the text content which should be the JSON array
+                    if (data.candidates && data.candidates.length > 0 &&
+                        data.candidates[0].content && data.candidates[0].content.parts &&
+                        data.candidates[0].content.parts.length > 0)
+                    {
+                        // Gemini might wrap the JSON in ```json ... ```, try to extract it
+                        let responseText = data.candidates[0].content.parts[0].text;
+                        responseText = responseText.trim();
+                        if (responseText.startsWith('```json')) {
+                            responseText = responseText.substring(7, responseText.length - 3).trim();
+                        } else if (responseText.startsWith('```')) {
+                             responseText = responseText.substring(3, responseText.length - 3).trim();
+                        }
+
+
+                        try {
+                             // Parse the cleaned text as JSON
+                             const result = JSON.parse(responseText);
+                             if (Array.isArray(result) && result.every(item => typeof item === 'number')) {
+                                 return result; // Return the array of IDs
+                             } else {
+                                 console.error("Gemini response was not a valid JSON array of numbers:", result);
+                                 throw new Error("AI response format is incorrect (expected array of IDs).");
+                             }
+                        } catch(parseError) {
+                             console.error("Failed to parse Gemini response as JSON:", parseError);
+                             console.error("Raw text received:", responseText);
+                             throw new Error("AI response was not valid JSON.");
+                        }
+                    } else if (data.promptFeedback && data.promptFeedback.blockReason) {
+                         console.error("Gemini API request blocked:", data.promptFeedback.blockReason);
+                         throw new Error(`AI request blocked due to: ${data.promptFeedback.blockReason}. Please check safety settings or modify the prompt/query.`);
+                     } else {
+                         console.error("Unexpected Gemini API response structure:", data);
+                        throw new Error("Received an unexpected response structure from the AI.");
+                    }
+
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    throw error; // Re-throw to be caught by the caller
+                }
+            }
+
+            async function performAiSearch() {
+                const query = aiSearchInput.value.trim();
+                if (!query) {
+                    // If query is cleared, reload based on checkbox state, clearing AI filter
+                    await loadCards(null);
+                    return;
+                }
+
+                if (!db) {
+                    aiStatus.textContent = 'Database not ready.';
+                    return;
+                }
+
+                showLoading(true);
+
+                try {
+                    // Fetch fresh data for the search context
+                    const allCards = await getAllCardsDb(); // Ensures `allCardsCache` is updated too
+
+                    if (allCards.length === 0) {
+                        aiStatus.textContent = 'No cards exist to search.';
+                        showLoading(false);
+                        return;
+                    }
+
+                    // **** NEW: Filter cards based on checkbox BEFORE sending to AI ****
+                    let cardsToSearch = allCards;
+                    if (showOpenOnlyCheckbox.checked) {
+                        cardsToSearch = allCards.filter(card => card.status === 'Open');
+                        console.log(`AI Search will consider ${cardsToSearch.length} Open cards.`);
+                        if (cardsToSearch.length === 0) {
+                            aiStatus.textContent = 'No Open cards exist to search with AI.';
+                            showLoading(false);
+                            // Clear previous AI results visually if any
+                            await loadCards(null); // Show the "No open cards" message
+                            return;
+                        }
+                    } else {
+                         console.log(`AI Search will consider all ${allCards.length} cards.`);
+                    }
+                    // **** END NEW FILTER ****
+
+
+                    // Select relevant fields for the AI from the filtered list.
+                    const cardsForAI = cardsToSearch.map(c => ({
+                        id: c.id,
+                        title: c.title,
+                        createdAt: c.createdAt,
+                        status: c.status,
+                        priority: c.priority,
+                        text: c.text
+                    }));
+
+                    const matchingIds = await callGeminiApi(query, cardsForAI);
+                    console.log("AI Search Matching IDs (from filtered set):", matchingIds);
+
+                    // Reload/filter the cards based on the IDs returned by AI.
+                    // loadCards will *also* apply the checkbox filter visually.
+                    await loadCards(matchingIds);
+
+                } catch (error) {
+                    console.error("AI Search failed:", error);
+                    // Try to decode specific Gemini errors if possible
+                    let message = error.message;
+                     if (message.includes("API key not valid")) {
+                         message = "Invalid Gemini API Key. Please check the key in the script.";
+                     } else if (message.includes("quota")) {
+                         message = "AI Search quota exceeded. Please try again later.";
+                     } else if (message.includes("blocked due to")) {
+                         message = `AI Search blocked: ${message.split("blocked due to: ")[1]}`;
+                     }
+                    alert(`AI Search Error: ${message}`);
+                    aiStatus.textContent = `Search Error: ${message.length > 50 ? message.substring(0, 50)+'...' : message}`;
+                     // Optionally show cards based on checkbox on error, or keep the current view
+                     // await loadCards(null);
+                } finally {
+                    showLoading(false);
+                }
+            }
+			
+			// Add event listeners for AI search
+            aiSearchBtn.addEventListener('click', performAiSearch);
+
+            // Allow searching by pressing Enter in the input field
+            aiSearchInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Prevent potential form submission if wrapped
+                    performAiSearch();
+                }
+            });
+
+            // Handle clearing the search input (shows all cards)
+            aiSearchInput.addEventListener('input', () => {
+                if (aiSearchInput.value.trim() === '') {
+                    loadCards(null); // Show all cards
+                }
+            });
+             // Also handle the 'search' event type which triggers on clicking the 'x' in search inputs
+             aiSearchInput.addEventListener('search', () => {
+                 if (aiSearchInput.value.trim() === '') {
+                     loadCards(null); // Show all cards
+                 }
+             });
+
+            // --- **** END NEW AI SEARCH FUNCTIONS **** ---
+			
+			// **** START NEW CHECKBOX EVENT LISTENER ****
+            showOpenOnlyCheckbox.addEventListener('change', () => {
+                console.log("Checkbox changed, reloading cards...");
+                // Check if there's an active AI search query
+                const currentQuery = aiSearchInput.value.trim();
+                if (currentQuery) {
+                    // If there is a query, re-run the AI search.
+                    // performAiSearch will now respect the new checkbox state.
+                    performAiSearch();
+                } else {
+                    // If no query, just reload the cards based on the new checkbox state.
+                    loadCards(null);
+                }
+            });
+            // **** END NEW CHECKBOX EVENT LISTENER ****
+
+
+			// --- Initialization ---
+            async function initializeApp() {
+                try {
+                    await openDb();
+                    await loadCards(); // Initial load uses cache if populated by getAllCardsDb
+                    console.log("Application initialized.");
+                } catch (error) {
+                    console.error("Initialization failed:", error);
+                    alert("Failed to initialize the application. IndexedDB might not be supported or working correctly.");
+                }
+            }
+
+            initializeApp(); // Start the application
+        });
+    </script>
+
+</body>
+</html>
