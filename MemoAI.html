@@ -63,9 +63,9 @@
             display: grid;
             /* Define columns: AddBtn | Checkbox | Search(flexible) | ExportBtn | ImportBtn */
             /* 1fr for search makes it take available space */
-            grid-template-columns: auto auto 1fr auto auto; 
+            grid-template-columns: auto auto 1fr auto auto;
             /* Define rows: Top row for controls, bottom for status */
-            grid-template-rows: auto auto; 
+            grid-template-rows: auto auto;
             align-items: center; /* Vertically center items within their row */
             gap: 10px;
             padding: 15px;
@@ -112,11 +112,11 @@
             grid-column: 5;
             grid-row: 1;
             /* Ensure it aligns well as a button */
-            display: inline-flex; 
+            display: inline-flex;
             align-items: center;
             justify-content: center;
         }
-        
+
         /* Hidden file input - no grid placement needed */
         /* #import-file */
 
@@ -152,14 +152,15 @@
             font-size: 0.85em;
             /* Remove position/transform styles if any were added */
         }
-		
+
 
         #card-container {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
-            padding: 10px; /* Add some padding to allow dropping near edges */
+            padding: 10px; /* Add some padding */
             min-height: 300px; /* Ensure drop zone has some height */
+            position: relative; /* Needed for absolute positioning of drop line */
         }
 
         /* Card Styling */
@@ -174,6 +175,9 @@
             cursor: grab;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             position: relative; /* Needed for absolute positioning if used, good practice */
+            order: var(--order, 0); /* Use CSS variable for order initially */
+            /* Ensure cards don't shrink below their content */
+            flex-shrink: 0;
         }
 
         .card.dragging {
@@ -181,6 +185,8 @@
             cursor: grabbing;
             box-shadow: 0 8px 15px rgba(0,0,0,0.2);
             transform: scale(1.05);
+            /* Make sure dragging item is above others, including drop line potentially */
+            z-index: 10;
         }
 
         .card-title {
@@ -314,8 +320,8 @@
             font-size: 1em; /* Ensure consistent font size */
         }
 
-        
-	
+
+
 		/* Toolbar background */
 		.modal-content .editor-toolbar {
 			background: #a8a8a8;
@@ -323,16 +329,16 @@
 			padding: 4px;
 			border-radius: 5px 5px 0 0;
 		}
-		
-		
+
+
 		.editor-toolbar button {
 			color: black; /* or whatever color you want */
 			background-color: transparent;
 			border: none;
 			padding: 5px;
 		}
-		
-		
+
+
         /* Adjust label margin */
         .modal-content .form-group {
              margin-bottom: 15px;
@@ -360,15 +366,19 @@
             display: none;
         }
 
-        .drop-indicator {
-            height: 50px; /* Height of the indicator */
-            background-color: rgba(0, 123, 255, 0.2);
-            border: 2px dashed #007bff;
-            border-radius: 8px;
-            margin: 10px 0; /* Match card gap / 2 */
-            width: 250px; /* Match card width */
-            flex-shrink: 0; /* Prevent shrinking */
-            box-sizing: border-box;
+        /* --- NEW Drop Line Indicator Styling --- */
+        .drop-line-indicator {
+            position: absolute;
+            top: 10px; /* Match container padding */
+            bottom: 10px; /* Match container padding */
+            width: 3px; /* Line thickness */
+            background-color: #007bff; /* Blue color */
+            border-radius: 2px;
+            opacity: 0.7;
+            pointer-events: none; /* Prevent it from interfering with mouse events */
+            display: none; /* Hidden by default */
+            z-index: 5; /* Above cards, below dragging card */
+            transition: left 0.1s ease-out; /* Smooth horizontal movement */
         }
 
     </style>
@@ -388,9 +398,9 @@
 				<input type="search" id="ai-search-input" placeholder="AI Search Query... (All your notes will be sent to Google AI API; use at your own discretion)">
 				<button id="ai-search-btn">AI Search</button>
 			</div>
-			
+
 		</div>
-		
+
 		<span id="ai-status"></span>
 
 		<button id="export-btn">Export Cards (JSON)</button>
@@ -400,6 +410,8 @@
 
     <div id="card-container">
         <!-- Cards will be loaded here -->
+        <!-- NEW: Drop Line Indicator Element -->
+        <div class="drop-line-indicator"></div>
     </div>
 
     <!-- Add/Edit Modal -->
@@ -475,23 +487,26 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- Global Variables ---
             const dbName = 'MarkdownCardsDB';
             const storeName = 'cards';
             let db;
             let easyMDEInstance = null;
             let draggedItem = null;
-            let dropIndicator = null;
+			let dropTargetElement = null; // NEW: To store the element to insert before
+            let originalCardDataBeforeEdit = null; // To store original data before editing
 
-            let originalCardDataBeforeEdit = null; // << NEW: To store original data
-
+            // --- DOM Elements ---
             const cardContainer = document.getElementById('card-container');
             const addCardBtn = document.getElementById('add-card-btn');
             const exportBtn = document.getElementById('export-btn');
-            const importBtnLabel = document.querySelector('.file-upload-label'); // Target the label
+            const importBtnLabel = document.querySelector('.file-upload-label');
             const importFileInput = document.getElementById('import-file');
             const cardTemplate = document.getElementById('card-template');
-
-            // Modal elements
+            const showOpenOnlyCheckbox = document.getElementById('show-open-only-checkbox');
+            const aiSearchInput = document.getElementById('ai-search-input');
+            const aiSearchBtn = document.getElementById('ai-search-btn');
+            const aiStatus = document.getElementById('ai-status');
             const editModal = document.getElementById('edit-modal');
             const modalTitle = document.getElementById('modal-title');
             const editForm = document.getElementById('edit-form');
@@ -499,49 +514,33 @@
             const editTitleInput = document.getElementById('edit-title');
             const editMarkdownTextarea = document.getElementById('edit-markdown');
             const cancelEditBtn = document.getElementById('cancel-edit-btn');
-            const saveCardBtn = document.getElementById('save-card-btn'); // Get save button
-            // NEW Modal field elements
+            const saveCardBtn = document.getElementById('save-card-btn');
             const editCreatedAtInput = document.getElementById('edit-created-at');
             const editStatusSelect = document.getElementById('edit-status');
             const editPrioritySelect = document.getElementById('edit-priority');
-			
-			// **** START NEW CHECKBOX VARIABLE ****
-            const showOpenOnlyCheckbox = document.getElementById('show-open-only-checkbox');
-            // **** END NEW CHECKBOX VARIABLE ****
-			
-			
-			// **** START NEW AI SEARCH VARIABLES ****
-            const GEMINI_API_KEY = CONFIG.GEMINI_API_KEY; // <--- PASTE YOUR GEMINI API KEY HERE
-			const GEMINI_MODEL = CONFIG.GEMINI_MODEL; // Or other suitable model e.g., gemini-pro
-			const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-            // const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
-            const aiSearchInput = document.getElementById('ai-search-input');
-            const aiSearchBtn = document.getElementById('ai-search-btn');
-            const aiStatus = document.getElementById('ai-status'); // Optional status element
+            const dropLineIndicator = cardContainer.querySelector('.drop-line-indicator'); // Get the line element
+
+            // --- AI Configuration ---
+            const GEMINI_API_KEY = CONFIG.GEMINI_API_KEY;
+            const GEMINI_MODEL = CONFIG.GEMINI_MODEL;
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
             let allCardsCache = []; // Cache for filtering
-            // **** END NEW AI SEARCH VARIABLES ****
 
 
             // --- IndexedDB Functions ---
 
             function openDb() {
                 return new Promise((resolve, reject) => {
-                    // Increment version if schema changes significantly,
-                    // but just adding fields to objects often doesn't require it.
-                    const request = indexedDB.open(dbName, 1);
+                    const request = indexedDB.open(dbName, 1); // Version 1
 
                     request.onupgradeneeded = (event) => {
                         const dbInstance = event.target.result;
                         if (!dbInstance.objectStoreNames.contains(storeName)) {
                              const store = dbInstance.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
                             store.createIndex('order', 'order', { unique: false });
-                             // You could add indexes for new fields here if needed for searching/sorting
-                             // store.createIndex('status', 'status', { unique: false });
-                             // store.createIndex('priority', 'priority', { unique: false });
-                             // store.createIndex('createdAt', 'createdAt', { unique: false });
+                            // Optional: Add indexes for status, priority, createdAt if needed later
                             console.log('IndexedDB store created.');
                         }
-                        // If updating structure in future versions, add logic here based on event.oldVersion
                     };
 
                     request.onsuccess = (event) => {
@@ -560,25 +559,25 @@
             function getStore(mode = 'readonly') {
                 if (!db) {
                     console.error("DB not initialized!");
+                    // Attempt to reopen if not initialized (simple recovery)
                     return openDb().then(dbInstance => dbInstance.transaction(storeName, mode).objectStore(storeName));
                 }
                  return Promise.resolve(db.transaction(storeName, mode).objectStore(storeName));
             }
 
             async function addCardDb(card) {
-                // Ensure required fields + new fields are present
                 const cardToAdd = {
                     title: card.title || 'Untitled',
                     text: card.text || '',
                     order: typeof card.order === 'number' ? card.order : 0,
-                    createdAt: card.createdAt || new Date().toISOString(), // Default on add
-                    status: card.status || 'Open', // Default on add
-                    priority: card.priority || 'Medium' // Default on add
+                    createdAt: card.createdAt || new Date().toISOString(),
+                    status: card.status || 'Open',
+                    priority: card.priority || 'Medium'
                 };
                 const store = await getStore('readwrite');
                 return new Promise((resolve, reject) => {
                     const request = store.add(cardToAdd);
-                    request.onsuccess = event => resolve(event.target.result); // Result is the new key
+                    request.onsuccess = event => resolve(event.target.result);
                     request.onerror = event => reject(event.target.error);
                 });
             }
@@ -590,8 +589,7 @@
                     const request = index.getAll();
                     request.onsuccess = event => {
                         const sortedCards = event.target.result.sort((a, b) => (a.order || 0) - (b.order || 0));
-                        // **** NEW: Update cache when fetching all cards ****
-                        allCardsCache = sortedCards;
+                        allCardsCache = sortedCards; // Update cache
                         resolve(sortedCards);
                     }
                     request.onerror = event => reject(event.target.error);
@@ -605,7 +603,7 @@
                 const store = await getStore('readonly');
                 return new Promise((resolve, reject) => {
                     const request = store.get(id);
-                    request.onsuccess = event => resolve(event.target.result); // Result might be undefined if not found
+                    request.onsuccess = event => resolve(event.target.result);
                     request.onerror = event => reject(event.target.error);
                 });
             }
@@ -614,22 +612,19 @@
                 if (!card || typeof card.id === 'undefined') {
                      return Promise.reject("Invalid card data for update: Missing ID");
                 }
-                // Ensure ID is a number
                 card.id = Number(card.id);
                 if (isNaN(card.id)) return Promise.reject("Invalid ID format for update");
 
-                 // Ensure default values for new fields if they are somehow missing
                  const cardToUpdate = {
-                    ...card, // Spread existing properties
-                    createdAt: card.createdAt || new Date().toISOString(), // Should exist, but fallback
+                    ...card,
+                    createdAt: card.createdAt || new Date().toISOString(),
                     status: card.status || 'Open',
                     priority: card.priority || 'Medium'
                  };
 
-
                 const store = await getStore('readwrite');
                 return new Promise((resolve, reject) => {
-                    const request = store.put(cardToUpdate); // put handles update
+                    const request = store.put(cardToUpdate);
                     request.onsuccess = event => resolve(event.target.result);
                     request.onerror = event => reject(event.target.error);
                 });
@@ -656,18 +651,15 @@
                 });
             }
 
-             // --- Helper Function ---
-             // Formats an ISO date string for display (e.g., "1/15/2024, 10:30 AM")
-             // Returns 'N/A' if the date is invalid
+            // --- Helper Functions ---
             function formatDisplayDate(isoString) {
                 if (!isoString) return 'N/A';
                 try {
                     const date = new Date(isoString);
-                     // Check if the date is valid
                     if (isNaN(date.getTime())) return 'Invalid Date';
-                    return date.toLocaleString(undefined, { // Use browser's locale
+                    return date.toLocaleString(undefined, {
                         year: 'numeric', month: 'numeric', day: 'numeric',
-                        hour: 'numeric', minute: '2-digit' // Adjust options as needed
+                        hour: 'numeric', minute: '2-digit'
                     });
                 } catch (e) {
                     console.error("Error formatting date:", isoString, e);
@@ -675,23 +667,17 @@
                 }
             }
 
-            // Formats an ISO string (or Date object) into YYYY-MM-DDTHH:mm for datetime-local input
-            // Returns an empty string if the input is invalid
             function formatInputDateTimeLocal(dateSource) {
                 if (!dateSource) return "";
                 try {
                     const date = (dateSource instanceof Date) ? dateSource : new Date(dateSource);
-                    if (isNaN(date.getTime())) return ""; // Invalid date
-
-                    // Pad single digit month/day/hour/minute with leading zero
+                    if (isNaN(date.getTime())) return "";
                     const pad = (num) => num.toString().padStart(2, '0');
-
                     const year = date.getFullYear();
-                    const month = pad(date.getMonth() + 1); // Month is 0-indexed
+                    const month = pad(date.getMonth() + 1);
                     const day = pad(date.getDate());
                     const hours = pad(date.getHours());
                     const minutes = pad(date.getMinutes());
-
                     return `${year}-${month}-${day}T${hours}:${minutes}`;
                 } catch (e) {
                     console.error("Error formatting for datetime-local:", dateSource, e);
@@ -708,34 +694,27 @@
                 const contentElement = cardElement.querySelector('.card-content');
                 const editBtn = cardElement.querySelector('.edit-btn');
                 const deleteBtn = cardElement.querySelector('.delete-btn');
-                // NEW Metadata elements
                 const createdAtEl = cardElement.querySelector('.card-created span');
                 const statusEl = cardElement.querySelector('.card-status span');
                 const priorityEl = cardElement.querySelector('.card-priority span');
 
-
                 cardElement.dataset.id = cardData.id;
-                cardElement.dataset.order = cardData.order;
-                titleElement.textContent = cardData.title || 'Untitled'; // Default title
+                // Use CSS variable for order, mirroring DB value
+                cardElement.style.setProperty('--order', cardData.order || 0);
+                titleElement.textContent = cardData.title || 'Untitled';
 
                 // Populate Metadata
                 createdAtEl.textContent = formatDisplayDate(cardData.createdAt);
-                const status = cardData.status || 'Open'; // Default status
+                const status = cardData.status || 'Open';
                 statusEl.textContent = status;
-                 // Add class if closed for potential styling (like line-through)
                 if (status.toLowerCase() === 'closed') {
                     cardElement.classList.add('status-closed');
-                     // Optional: Dim the card slightly or add other visual cues
-                    // cardElement.style.opacity = '0.7';
                 } else {
                      cardElement.classList.remove('status-closed');
-                     // cardElement.style.opacity = '1';
                 }
 
-
-                const priority = (cardData.priority || 'Medium').toLowerCase(); // Default priority, lowercase for class
-                priorityEl.innerHTML = `<span class="priority-label priority-${priority}">${cardData.priority || 'Medium'}</span>`;
-
+                const priority = (cardData.priority || 'Medium').toLowerCase();
+				priorityEl.innerHTML = `<span class="priority-label priority-${priority}">${cardData.priority || 'Medium'}</span>`;
 
                 // Render Markdown content
                 if (window.marked && typeof window.marked.parse === 'function') {
@@ -746,70 +725,63 @@
                     contentElement.textContent = cardData.text || ''; // Fallback
                 }
 
-
                 // Add event listeners
                 editBtn.addEventListener('click', () => handleEdit(cardData.id));
                 deleteBtn.addEventListener('click', () => handleDelete(cardData.id));
 
-                // Drag and Drop listeners
+                // Drag and Drop listeners for the card itself
                 cardElement.addEventListener('dragstart', handleDragStart);
                 cardElement.addEventListener('dragend', handleDragEnd);
-                cardElement.addEventListener('dragenter', handleDragEnter);
-                cardElement.addEventListener('dragleave', handleDragLeave);
+                // Removed dragenter/dragleave from individual cards as container handles it
 
                 cardContainer.appendChild(cardElement);
                 return cardElement;
             }
 
+            // --- Card Loading & Filtering ---
 			async function loadCards(filterIds = null) {
-                cardContainer.innerHTML = ''; // Clear existing cards
+                // Clear only cards, keep the indicator line element
+                Array.from(cardContainer.querySelectorAll('.card')).forEach(card => card.remove());
+
                 try {
-                    // Fetch fresh data or use cache - getAllCardsDb updates the cache
                     let cardsToRender = allCardsCache.length > 0 && filterIds === null ? allCardsCache : await getAllCardsDb();
 
-                    // **** NEW: Apply "Show Only Open" filter ****
+                    // Apply "Show Only Open" filter
                     if (showOpenOnlyCheckbox.checked) {
                         cardsToRender = cardsToRender.filter(card => card.status === 'Open');
-                        console.log(`Filtering for Open status. ${cardsToRender.length} cards remain.`);
-                    } else {
-                        console.log("Not filtering for Open status. Showing all.");
                     }
-                    // **** END NEW FILTER ****
 
-
-                    let aiFilteredCards = cardsToRender; // Start with the (potentially) Open-filtered list
+                    let finalFilteredCards = cardsToRender;
 
                     if (filterIds !== null && Array.isArray(filterIds)) {
-                        // Filter based on the IDs provided by AI search
-                        // Operate on the cardsToRender list which might already be filtered by the checkbox
+                        // Filter based on AI search IDs
                         const filterIdSet = new Set(filterIds.map(id => Number(id)));
-                        aiFilteredCards = cardsToRender.filter(card => filterIdSet.has(card.id));
+                        finalFilteredCards = cardsToRender.filter(card => filterIdSet.has(card.id));
 
-                        // Update status message based on AI results *after* checkbox filter
-                        if(aiFilteredCards.length === 0 && filterIds.length > 0) {
-                           console.warn("AI Search returned IDs, but no matching cards found after checkbox filter.");
-						   
-                           aiStatus.textContent = `AI found ${filterIds.length} potential match(es), but none are currently visible${showOpenOnlyCheckbox.checked ? " (with 'Open Only' checked)" : ""}.`;
-						   
-                        } else if (aiFilteredCards.length === 0 && filterIds.length === 0){
-                           aiStatus.textContent = `No cards matched your query${showOpenOnlyCheckbox.checked ? " (within 'Open Only' cards)" : ""}.`;
-                        } else {
-                           aiStatus.textContent = `Showing ${aiFilteredCards.length} matching card(s)${showOpenOnlyCheckbox.checked ? " (within 'Open Only' cards)" : ""}.`;
-                        }
+                        // Update status message based on AI results combined with checkbox filter
+                         if(finalFilteredCards.length === 0 && filterIds.length > 0) {
+                           aiStatus.textContent = `AI found ${filterIds.length} potential match(es), but none are visible${showOpenOnlyCheckbox.checked ? " (with 'Open Only' checked)" : ""}.`;
+                         } else if (finalFilteredCards.length === 0 && filterIds.length === 0){
+                           aiStatus.textContent = `No cards matched your query${showOpenOnlyCheckbox.checked ? " (within currently visible cards)" : ""}.`;
+                         } else {
+                           aiStatus.textContent = `Showing ${finalFilteredCards.length} matching card(s)${showOpenOnlyCheckbox.checked ? " (within 'Open Only' cards)" : ""}.`;
+                         }
                     } else if (filterIds === null) {
-                        // If clearing filter or initial load, show cards based on checkbox
-                         aiStatus.textContent = ''; // Clear status
+                        // Clear status if not an AI filter result
+                         aiStatus.textContent = '';
                     }
 
-                    // Render the final list (filtered by checkbox AND potentially by AI)
-                    if (aiFilteredCards.length === 0 ) {
-                         // Display a message if no cards match the combined filters
+                    // Render the final list
+                    if (finalFilteredCards.length === 0) {
                          const message = filterIds !== null
                              ? `No cards match the current filters${showOpenOnlyCheckbox.checked ? ' (Open Only + AI Search)' : ' (AI Search)'}.`
                              : `No cards to display${showOpenOnlyCheckbox.checked ? ' (with status Open)' : ''}. Add one!`;
-                         cardContainer.innerHTML = `<p style="color: #666;">${message}</p>`;
+                         const p = document.createElement('p');
+                         p.style.color = '#666';
+                         p.textContent = message;
+                         cardContainer.appendChild(p); // Append message instead of setting innerHTML
                     } else {
-                        aiFilteredCards.forEach(card => renderCard(card));
+                        finalFilteredCards.forEach(card => renderCard(card));
                     }
                 } catch (error) {
                     console.error("Error loading/filtering cards:", error);
@@ -819,18 +791,15 @@
             }
 
             // --- Modal Handling ---
-			
             function openEditModal(card = null) {
-                // Clear previous original data state
-                originalCardDataBeforeEdit = null; // << NEW: Reset state
+                originalCardDataBeforeEdit = null;
 
                 if (easyMDEInstance) {
                     easyMDEInstance.toTextArea();
                     easyMDEInstance = null;
                 }
 
-                if (card) {
-                    // Editing existing card
+                if (card) { // Editing existing card
                     modalTitle.textContent = "Edit Card";
                     editIdInput.value = card.id;
                     editTitleInput.value = card.title || '';
@@ -838,28 +807,21 @@
                     editCreatedAtInput.value = formatInputDateTimeLocal(card.createdAt || new Date());
                     editStatusSelect.value = card.status || 'Open';
                     editPrioritySelect.value = card.priority || 'Medium';
-
-                    // << NEW: Store original data for comparison
-                    originalCardDataBeforeEdit = {
-                        id: card.id, // Keep id for context, though not compared
+                    originalCardDataBeforeEdit = { // Store original values
+                        id: card.id,
                         title: card.title || '',
                         text: card.text || '',
-                        createdAt: formatInputDateTimeLocal(card.createdAt || new Date()), // Store formatted value
+                        createdAt: formatInputDateTimeLocal(card.createdAt || new Date()),
                         status: card.status || 'Open',
                         priority: card.priority || 'Medium'
                     };
-
-                } else {
-                    // Adding new card
+                } else { // Adding new card
                     modalTitle.textContent = "Add New Card";
                     editIdInput.value = '';
-                    editTitleInput.value = '';
-                    editMarkdownTextarea.value = '';
-                    editCreatedAtInput.value = formatInputDateTimeLocal(new Date());
+                    editForm.reset(); // Reset form to defaults
+                    editCreatedAtInput.value = formatInputDateTimeLocal(new Date()); // Set current date
                     editStatusSelect.value = 'Open';
                     editPrioritySelect.value = 'Medium';
-
-                    // << NEW: Mark as new card (original state is 'empty/default')
                     originalCardDataBeforeEdit = { isNew: true };
                 }
 
@@ -867,105 +829,63 @@
                 try {
                     easyMDEInstance = new EasyMDE({
                         element: editMarkdownTextarea,
-                        // ... (rest of EasyMDE options)
 						spellChecker: false,
                         status: false,
 						placeholder: "Start typing to edit...",
-                        renderingConfig: {
-                             singleLineBreaks: true, // Render single line breaks as <br>
-                             codeSyntaxHighlighting: true, // If you want code highlighting
-                        },
-                        toolbar: [
-							"bold", "italic", "heading", "|",
-							"quote", "unordered-list", "ordered-list", "|",
-							"link", "image", "table", "|", // Added table
-							"preview", "side-by-side", "fullscreen", "|",
-							"guide" // Link to Markdown guide
-						],
+                        renderingConfig: { singleLineBreaks: true, codeSyntaxHighlighting: true },
+                        toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "table", "|", "preview", "side-by-side", "fullscreen", "|", "guide"],
                     });
                 } catch (error) {
                      console.error("Failed to initialize EasyMDE:", error);
                      alert("Error initializing the markdown editor. Please check the console.");
                 }
-
                 editTitleInput.focus();
             }
-			
-			// << NEW: Function to check if form data has changed
+
             function hasUnsavedChanges() {
-                if (!originalCardDataBeforeEdit) return false; // Should not happen if modal is open
+                if (!originalCardDataBeforeEdit) return false;
 
                 const currentTitle = editTitleInput.value.trim();
                 const currentText = easyMDEInstance ? easyMDEInstance.value() : editMarkdownTextarea.value;
-                const currentCreatedAt = editCreatedAtInput.value; // Compare the input's string value
+                const currentCreatedAt = editCreatedAtInput.value;
                 const currentStatus = editStatusSelect.value;
                 const currentPriority = editPrioritySelect.value;
 
                 if (originalCardDataBeforeEdit.isNew) {
-                    // For a new card, check if anything significant was entered
-                    // (Ignoring default date/status/priority unless they *differ* from the initial defaults,
-                    // but simpler to just check title/text)
-                    return currentTitle !== '' || currentText.trim() !== '';
+                    // Check if anything significant was entered for a new card
+                    return currentTitle !== '' || currentText.trim() !== '' ||
+                           currentStatus !== 'Open' || currentPriority !== 'Medium'; // Check if defaults changed
                 } else {
-                    // For an existing card, compare with stored original values
-                    const titleChanged = currentTitle !== originalCardDataBeforeEdit.title;
-                    const textChanged = currentText !== originalCardDataBeforeEdit.text;
-                    const createdAtChanged = currentCreatedAt !== originalCardDataBeforeEdit.createdAt;
-                    const statusChanged = currentStatus !== originalCardDataBeforeEdit.status;
-                    const priorityChanged = currentPriority !== originalCardDataBeforeEdit.priority;
-
-                    return titleChanged || textChanged || createdAtChanged || statusChanged || priorityChanged;
+                    // Compare with stored original values for existing card
+                    return currentTitle !== originalCardDataBeforeEdit.title ||
+                           currentText !== originalCardDataBeforeEdit.text ||
+                           currentCreatedAt !== originalCardDataBeforeEdit.createdAt ||
+                           currentStatus !== originalCardDataBeforeEdit.status ||
+                           currentPriority !== originalCardDataBeforeEdit.priority;
                 }
             }
 
-            // << NEW: Function to handle close request (checks for changes)
             function requestCloseModal() {
                 if (hasUnsavedChanges()) {
-                    const discard = confirm("You have unsaved changes. Discard them?");
-                    if (discard) {
-                        closeEditModal(); // Close only if user confirms discard
+                    if (confirm("You have unsaved changes. Discard them?")) {
+                        closeEditModal();
                     }
-                    // If user clicks 'Cancel' on the confirm dialog, do nothing (modal stays open)
                 } else {
-                    closeEditModal(); // No changes, close directly
+                    closeEditModal();
                 }
             }
-			
-			
 
             function closeEditModal() {
                 if (easyMDEInstance) {
-                    try {
-                        easyMDEInstance.toTextArea(); // Clean up EasyMDE
-                    } catch (e) { console.error("Error cleaning up EasyMDE:", e); }
+                    try { easyMDEInstance.toTextArea(); } catch (e) { console.error("Error cleaning up EasyMDE:", e); }
                     easyMDEInstance = null;
                 }
                 editModal.style.display = 'none';
-                // Clear form fields (already done in original code, kept for clarity)
-                editIdInput.value = '';
-                editTitleInput.value = '';
-                editMarkdownTextarea.value = '';
-                editCreatedAtInput.value = '';
-                editStatusSelect.value = 'Open';
-                editPrioritySelect.value = 'Medium';
-
-                // << NEW: Clear the stored original data
-                originalCardDataBeforeEdit = null;
+                editForm.reset(); // Reset form fields
+                originalCardDataBeforeEdit = null; // Clear original data state
             }
 
-            // --- Event Handlers ---
-            addCardBtn.addEventListener('click', () => openEditModal());
-            cancelEditBtn.addEventListener('click', requestCloseModal);
-
-             // << MODIFIED: Use requestCloseModal for clicking outside
-            window.addEventListener('click', (event) => {
-                if (event.target === editModal) {
-                    requestCloseModal();
-                }
-            });
-
-            // Submit handler remains the same - it saves changes, then closes normally
-            editForm.addEventListener('submit', async (event) => {
+            async function handleSaveCard(event) {
                 event.preventDefault();
                 saveCardBtn.disabled = true;
                 saveCardBtn.textContent = 'Saving...';
@@ -973,48 +893,36 @@
                 const id = editIdInput.value;
                 const title = editTitleInput.value.trim();
                 const text = easyMDEInstance ? easyMDEInstance.value() : editMarkdownTextarea.value;
-                let createdAtISO = null;
+                let createdAtISO = new Date().toISOString(); // Default to now
                 try {
                     if (editCreatedAtInput.value) {
                          createdAtISO = new Date(editCreatedAtInput.value).toISOString();
-                    } else {
-                        createdAtISO = new Date().toISOString();
                     }
-                } catch (e) {
-                     console.error("Invalid date from input, using current time.", e)
-                     createdAtISO = new Date().toISOString();
-                }
+                } catch (e) { console.error("Invalid date from input, using current time.", e) }
                 const status = editStatusSelect.value;
                 const priority = editPrioritySelect.value;
-                let currentOrder;
 
                 try {
-                     if (id) {
+                     if (id) { // Update existing card
                         const existingCard = await getCardDb(id);
                         if (!existingCard) throw new Error(`Card with ID ${id} not found for update.`);
-                        currentOrder = existingCard.order;
                         const cardData = {
-                             id: Number(id), title, text, order: currentOrder,
+                             id: Number(id), title, text, order: existingCard.order, // Keep existing order
                              createdAt: createdAtISO, status, priority
                         };
                         await updateCardDb(cardData);
-                        console.log("Card updated:", cardData);
-                    } else {
+                    } else { // Add new card
                         const cards = await getAllCardsDb();
                         const maxOrder = cards.reduce((max, card) => Math.max(max, card.order || 0), -1);
-                        currentOrder = maxOrder + 1;
                         const cardData = {
-                            title, text, order: currentOrder,
+                            title, text, order: maxOrder + 1, // Add to end
                             createdAt: createdAtISO, status, priority
                          };
-                        const newId = await addCardDb(cardData);
-                        console.log("Card added with ID:", newId, cardData);
+                        await addCardDb(cardData);
                     }
-
-                    // << IMPORTANT: Call the *actual* close function after successful save
-                    closeEditModal();
-                    allCardsCache = []; // Clear the cache
-                    await loadCards();
+                    closeEditModal(); // Close after successful save
+                    allCardsCache = []; // Invalidate cache
+                    await loadCards(); // Reload cards
                 } catch (error) {
                     console.error("Error saving card:", error);
                     alert(`Failed to save card: ${error.message}`);
@@ -1022,7 +930,7 @@
                     saveCardBtn.disabled = false;
                     saveCardBtn.textContent = 'Save Card';
                 }
-            });
+            }
 
             async function handleEdit(id) {
                 try {
@@ -1032,7 +940,7 @@
                     } else {
                         console.error("Card not found for editing:", id);
                         alert("Could not find the card to edit.");
-                        await loadCards(); // Reload to ensure consistency if card vanished
+                        await loadCards(); // Reload to ensure consistency
                     }
                 } catch (error) {
                     console.error("Error fetching card for edit:", error);
@@ -1045,13 +953,11 @@
                     try {
                         await deleteCardDb(id);
                         console.log("Card deleted:", id);
+                        // Remove element directly instead of full reload for better UX
                         const cardElement = cardContainer.querySelector(`.card[data-id="${id}"]`);
-                        if (cardElement) {
-                            cardElement.remove();
-                            // Optional: Recalculate order immediately after delete if needed
-                            // but drag/drop handles reordering anyway.
-                        }
-                        // No loadCards() needed if just removing element
+                        if (cardElement) cardElement.remove();
+                        allCardsCache = []; // Invalidate cache as order/content changed
+                        // No loadCards() needed unless order needs recalculation, handled by drop anyway
                     } catch (error) {
                         console.error("Error deleting card:", error);
                         alert("Failed to delete card.");
@@ -1060,38 +966,28 @@
             }
 
             // --- Import/Export ---
-            exportBtn.addEventListener('click', async () => {
+            async function handleExport() {
                 try {
                     const cards = await getAllCardsDb();
-                    // Ensure all exported cards have the new fields (even if undefined/null)
-                    const cardsToExport = cards.map(c => ({
-                         id: c.id,
-                         title: c.title,
-                         text: c.text,
-                         order: c.order,
-                         createdAt: c.createdAt,
-                         status: c.status,
-                         priority: c.priority
+                    const cardsToExport = cards.map(c => ({ // Ensure all needed fields are present
+                         id: c.id, title: c.title, text: c.text, order: c.order,
+                         createdAt: c.createdAt, status: c.status, priority: c.priority
                     }));
                     const dataStr = JSON.stringify(cardsToExport, null, 2);
                     const blob = new Blob([dataStr], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
-
                     const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'cards-export.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    a.href = url; a.download = 'cards-export.json';
+                    document.body.appendChild(a); a.click();
+                    document.body.removeChild(a); URL.revokeObjectURL(url);
                     console.log("Cards exported.");
                 } catch (error) {
                     console.error("Error exporting cards:", error);
                     alert("Failed to export cards.");
                 }
-            });
+            }
 
-            importFileInput.addEventListener('change', (event) => {
+            function handleImport(event) {
                 const file = event.target.files[0];
                 if (!file) return;
 
@@ -1099,40 +995,30 @@
                 reader.onload = async (e) => {
                     try {
                         const importedCards = JSON.parse(e.target.result);
+                        if (!Array.isArray(importedCards)) throw new Error("Imported file is not a valid card array.");
 
-                        if (!Array.isArray(importedCards)) {
-                            throw new Error("Imported file is not a valid card array.");
-                        }
-                        // Validate basic structure (allow missing new fields for compatibility)
+                        // Basic validation
                         const isValid = importedCards.every(card =>
-                            typeof card === 'object' &&
-                            card !== null &&
-                            typeof card.title === 'string' &&
-                            typeof card.text === 'string' &&
-                            typeof card.order === 'number'
+                            typeof card === 'object' && card !== null &&
+                            typeof card.title === 'string' && typeof card.text === 'string' && typeof card.order === 'number'
                         );
-                        if (!isValid) {
-                             throw new Error("Imported data has invalid basic card structure (missing title, text, or order).");
-                        }
+                        if (!isValid) throw new Error("Imported data has invalid structure (missing title, text, or order).");
 
                         if (confirm('Importing will replace all current cards. Are you sure?')) {
                             await clearAllCardsDb();
-                            // Add cards one by one, letting addCardDb handle defaults for potentially missing new fields
                             for (const card of importedCards) {
-                                // Remove 'id' before adding so DB generates new ones
-                                const { id, ...cardData } = card;
-                                // addCardDb will provide defaults for createdAt, status, priority if missing
-                                await addCardDb(cardData);
+                                const { id, ...cardData } = card; // Remove old ID
+                                await addCardDb(cardData); // Let addCardDb handle defaults
                             }
                             console.log("Cards imported successfully.");
-							allCardsCache = []; // <--- FIX: Clear cache here
-                            await loadCards(); // Reload to display imported cards
+							allCardsCache = []; // Clear cache after import
+                            await loadCards(); // Reload to display
                         }
                     } catch (error) {
                         console.error("Error importing cards:", error);
                         alert(`Failed to import cards: ${error.message}`);
                     } finally {
-                        importFileInput.value = null;
+                        importFileInput.value = null; // Reset file input
                     }
                 };
                 reader.onerror = (error) => {
@@ -1141,396 +1027,431 @@
                      importFileInput.value = null;
                 };
                 reader.readAsText(file);
-            });
+            }
 
 
-             // --- Drag and Drop (No changes needed here for metadata) ---
-
-             function createDropIndicator() {
-                 if (!dropIndicator) {
-                     dropIndicator = document.createElement('div');
-                     dropIndicator.classList.add('drop-indicator');
-                 }
-                 return dropIndicator;
-             }
+             // --- Drag and Drop Logic (Refactored) ---
 
              function handleDragStart(e) {
-                 draggedItem = e.target;
-                 setTimeout(() => {
+				 draggedItem = e.target; // The card being dragged
+                 setTimeout(() => { // Apply dragging style slightly after drag starts
                      if(draggedItem) draggedItem.classList.add('dragging');
                  }, 0);
                  e.dataTransfer.effectAllowed = 'move';
-                 e.dataTransfer.setData('text/plain', draggedItem.dataset.id);
+                 e.dataTransfer.setData('text/plain', draggedItem.dataset.id); // Store ID for reference
+                 // Do not hide the line here, dragover will handle it
              }
 
-             function handleDragEnd(e) {
-                 if (draggedItem && draggedItem.classList.contains('dragging')) {
-                     draggedItem.classList.remove('dragging');
-                 }
-                 removeDropIndicator();
-                 draggedItem = null;
-             }
+			function handleDragEnd(e) {
+				if (draggedItem && draggedItem.classList.contains('dragging')) {
+					draggedItem.classList.remove('dragging');
+				}
+				hideDropLineIndicator(); // Hide the line when dragging stops
+				draggedItem = null;
+				dropTargetElement = null; // *** RESET stored target on drag end ***
+			}
 
-             cardContainer.addEventListener('dragover', (e) => {
-                 e.preventDefault();
-                 e.dataTransfer.dropEffect = 'move';
+             function handleDragOver(e) {
+				e.preventDefault();
+				e.dataTransfer.dropEffect = 'move';
 
-                 const indicator = createDropIndicator();
-                 const afterElement = getDragAfterElement(cardContainer, e.clientY);
+				const container = e.currentTarget;
+				// Calculate the target element based on current mouse position
+				const afterElement = getDragAfterElement(container, e.clientX, e.clientY);
 
-                 if (afterElement == null) {
-                     if (!cardContainer.contains(indicator) || cardContainer.lastElementChild !== indicator) {
-                        removeDropIndicator();
-                        cardContainer.appendChild(indicator);
-                     }
-                 } else {
-                     if (!cardContainer.contains(indicator) || afterElement !== indicator.nextElementSibling) {
-                        removeDropIndicator();
-                        cardContainer.insertBefore(indicator, afterElement);
-                     }
-                 }
-             });
+				// *** STORE the calculated target ***
+				dropTargetElement = afterElement;
 
-              function handleDragEnter(e) {
-                e.preventDefault();
-             }
+				// Show the indicator based on the *stored* target
+				showDropLineIndicator(container, dropTargetElement);
+			}
+			
+			function handleDragLeaveContainer(e) {
+				 // Hide the line only if the mouse truly leaves the container boundary
+				 if (!e.currentTarget.contains(e.relatedTarget)) {
+					 hideDropLineIndicator();
+					 dropTargetElement = null; // *** RESET stored target on leaving container ***
+				 }
+			 }
 
-              function handleDragLeave(e) {
-                 // Basic removal check (less critical now with dragover handling)
-                  if (e.target === cardContainer && !cardContainer.contains(e.relatedTarget)) {
-                    // removeDropIndicator(); // Let dragover manage insertion/removal mostly
-                  }
-             }
+			async function handleDrop(e) {
+				e.preventDefault();
 
-             cardContainer.addEventListener('drop', async (e) => {
-                 e.preventDefault();
-                 removeDropIndicator();
+				// *** USE the stored target element ***
+				const afterElement = dropTargetElement;
 
-                 if (!draggedItem) return;
+				// Reset the stored target and hide the indicator immediately
+				dropTargetElement = null;
+				hideDropLineIndicator();
 
-                 const afterElement = getDragAfterElement(cardContainer, e.clientY);
+				if (!draggedItem) return; // Check if we are actually dragging something
 
-                 // Move the draggedItem in the DOM
-                 if (afterElement == null) {
-                    cardContainer.appendChild(draggedItem);
-                } else {
-                    cardContainer.insertBefore(draggedItem, afterElement);
+				const container = e.currentTarget; // Get container from the event
+
+				// Move the draggedItem in the DOM using the stored afterElement
+				if (afterElement === null) { // Check for null explicitly
+					container.appendChild(draggedItem);
+					console.log(`Dropping card ${draggedItem.dataset.id} at the end`);
+				} else {
+					container.insertBefore(draggedItem, afterElement);
+					console.log(`Dropping card ${draggedItem.dataset.id} before card ${afterElement.dataset.id}`);
+				}
+
+				// Update Order in IndexedDB (This part remains the same)
+				await updateCardOrderInDb();
+
+				// Ensure dragging class is removed (already handled by dragend)
+				// The draggedItem variable itself will be cleared in handleDragEnd
+			}
+
+			// Helper to calculate the element *before* which the dragged item should be placed
+			function getDragAfterElement(container, x, y) {
+				const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+
+                if (draggableElements.length === 0) {
+                    return null;
                 }
 
-                 // Update Order in IndexedDB
-                 const cardsInNewOrder = Array.from(cardContainer.querySelectorAll('.card:not(.dragging):not(.drop-indicator)'));
+				let closest = {
+					distanceSq: Number.POSITIVE_INFINITY,
+					element: null
+				};
 
-                 const updatePromises = cardsInNewOrder.map(async (cardEl, index) => {
-                     const cardId = Number(cardEl.dataset.id);
-                     try {
-                         const cardData = await getCardDb(cardId);
-                         if (cardData) {
-                             if (cardData.order !== index) { // Only update if order actually changed
-                                cardData.order = index;
-                                return updateCardDb(cardData);
-                             } else {
-                                return Promise.resolve(); // No change needed
-                             }
-                         } else {
-                              console.warn("Card data not found for ID during reorder:", cardId);
-                              return Promise.resolve();
-                         }
-                     } catch (error) {
-                         console.error("Error fetching/updating card during reorder:", cardId, error);
-                         return Promise.reject(error); // Propagate error for Promise.all
-                     }
-                 });
+				draggableElements.forEach(child => {
+					const box = child.getBoundingClientRect();
+					const centerX = box.left + box.width / 2;
+					const centerY = box.top + box.height / 2;
+					const distanceSq = Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2);
 
-                 try {
-                     await Promise.all(updatePromises);
-                     console.log("Card order updated in IndexedDB.");
-                     // Update dataset order attribute on elements for consistency (optional but good practice)
-                      cardsInNewOrder.forEach((cardEl, index) => {
-                          cardEl.dataset.order = index;
-                      });
+					if (distanceSq < closest.distanceSq) {
+						closest.distanceSq = distanceSq;
+						closest.element = child;
+					}
+				});
 
-                 } catch (error) {
-                     console.error("Failed to update card order in DB:", error);
-                     alert("Error saving new card order. Please refresh and try again.");
-                     await loadCards(); // Reload to reflect actual DB state on error
-                 } finally {
-                      // Ensure dragging class is removed even if drop logic had issues
-                      if (draggedItem && draggedItem.classList.contains('dragging')) {
-                          draggedItem.classList.remove('dragging');
-                     }
-                     draggedItem = null;
-                 }
-             });
+               
+                const closestElement = closest.element;
+
+				// Step 2: Decide where to insert relative to the closest element
+				if (closestElement) {
+					const box = closestElement.getBoundingClientRect();
+					const midpointX = box.left + box.width / 2;
+
+					if (x < midpointX) {
+						// Cursor is LEFT half -> insert BEFORE closestElement
+						return closestElement;
+					} else {
+						// Cursor is RIGHT half -> insert AFTER closestElement (before its next sibling)
+						return closestElement.nextElementSibling;
+					}
+				} else {
+                    // Fallback if no closest element found
+					return null;
+				}
+			}
+
+            function showDropLineIndicator(container, afterElement) {
+                if (!dropLineIndicator) return;
+
+                const containerRect = container.getBoundingClientRect();
+                const containerStyle = window.getComputedStyle(container);
+                const containerGap = parseInt(containerStyle.gap || '20', 10);
+                const indicatorWidth = parseInt(window.getComputedStyle(dropLineIndicator).width || '3', 10);
+
+                let lineLeft = 0;
+                let lineTop = 0;
+                let lineHeight = 0;
+
+                // Determine the reference element for vertical positioning
+                // If dropping before an element, use that element.
+                // If dropping at the end (afterElement is null), use the last element.
+                const refElement = afterElement || container.querySelector('.card:not(.dragging):last-of-type');
+
+                if (refElement) {
+                    // Base vertical position on the reference element
+                    const refRect = refElement.getBoundingClientRect();
+                    const refStyle = window.getComputedStyle(refElement);
+                     // offsetTop is relative to the container
+                    lineTop = refElement.offsetTop;
+                    lineHeight = refElement.offsetHeight;
+
+                    // --- Horizontal Calculation (remains similar) ---
+                    if (afterElement) {
+                        // Calculate position to the left of the 'afterElement'
+                        const afterRect = afterElement.getBoundingClientRect();
+                        // Position line in the middle of the gap *before* this element
+                        lineLeft = afterElement.offsetLeft - (containerGap / 2) - (indicatorWidth / 2);
+
+                    } else {
+                        // afterElement is null, means drop at the end. Position after the last element (refElement).
+                        const lastRect = refElement.getBoundingClientRect(); // refElement is the last card here
+                        // Position line in the middle of the gap *after* the last element
+                        lineLeft = refElement.offsetLeft + refElement.offsetWidth + (containerGap / 2) - (indicatorWidth / 2);
+                    }
+
+                } else {
+                    // Container is empty or only contains the dragged element
+                    lineTop = parseInt(containerStyle.paddingTop || '10', 10);
+                    // Try to approximate a card height or use a fixed value
+                    lineHeight = 100; // Default height if no cards
+                    // Position at the start of the container
+                    lineLeft = parseInt(containerStyle.paddingLeft || '10', 10);
+                }
 
 
-             function getDragAfterElement(container, y) {
-                 const draggableElements = [...container.querySelectorAll('.card:not(.dragging):not(.drop-indicator)')];
+                // Apply styles to position and show the line
+                dropLineIndicator.style.left = `${Math.max(0, lineLeft)}px`; // Ensure not negative
+                dropLineIndicator.style.top = `${lineTop}px`;
+                dropLineIndicator.style.height = `${lineHeight}px`;
+                dropLineIndicator.style.display = 'block';
+            }
 
-                 return draggableElements.reduce((closest, child) => {
-                     const box = child.getBoundingClientRect();
-                     const offset = y - box.top - box.height / 2;
-                     if (offset < 0 && offset > closest.offset) {
-                         return { offset: offset, element: child };
-                     } else {
-                         return closest;
-                     }
-                 }, { offset: Number.NEGATIVE_INFINITY }).element;
-             }
-
-            function removeDropIndicator() {
-                 if (dropIndicator && dropIndicator.parentNode) {
-                     dropIndicator.parentNode.removeChild(dropIndicator);
+            function hideDropLineIndicator() {
+                 if (dropLineIndicator) {
+                     dropLineIndicator.style.display = 'none';
                  }
             }
 			
-			// --- **** NEW AI SEARCH FUNCTIONS **** ---
+			
+			// End Drag and Drop
+
+			async function updateCardOrderInDb() {
+                // *** CORRECTED SELECTOR ***
+                // Get ALL card elements in their current DOM order AFTER the drop,
+                // including the one that was just dropped.
+                const cardsInNewOrder = Array.from(cardContainer.querySelectorAll('.card'));
+                //console.log(`Updating order for ${cardsInNewOrder.length} cards based on current DOM sequence.`); // Debug log
+
+                // Create promises to update each card based on its new DOM index
+                const updatePromises = cardsInNewOrder.map(async (cardEl, index) => {
+                    const cardId = Number(cardEl.dataset.id);
+                    try {
+                        // Fetch the card data
+                        const cardData = await getCardDb(cardId);
+                        if (cardData) {
+                            // *** UNCONDITIONAL UPDATE ***
+                            // Set the card's order to its current index in the DOM list.
+                            //console.log(`  Updating Card ID ${cardId}: Setting order to ${index} (was ${cardData.order})`); // Log
+                            cardData.order = index;
+                            return updateCardDb(cardData); // Return the promise to update this card
+                        } else {
+                            console.warn("Card data not found in DB for ID during reorder:", cardId);
+                            return Promise.resolve();
+                        }
+                    } catch (error) {
+                        console.error(`Error processing card ID ${cardId} during reorder:`, error);
+                        return Promise.reject(error);
+                    }
+                });
+
+                // Wait for all database updates to complete
+                try {
+                    await Promise.all(updatePromises);
+                    console.log("Card order update process completed successfully in IndexedDB.");
+
+                    // Update the data-order attribute and CSS variable on the DOM elements
+                    cardsInNewOrder.forEach((cardEl, index) => {
+                        cardEl.dataset.order = index;
+                        cardEl.style.setProperty('--order', index);
+                    });
+
+                    // Invalidate the cache
+                    allCardsCache = [];
+                    console.log("Local card cache cleared due to reordering.");
+
+                } catch (error) {
+                    console.error("One or more errors occurred during card order update in DB:", error);
+                    alert("Error saving the new card order. The display might be inconsistent. Please refresh.");
+                    await loadCards(); // Reload on error
+                }
+            }
+
+			// --- AI Search Functions ---
 
             function showLoading(isLoading) {
-                if (isLoading) {
-                    aiSearchBtn.disabled = true;
-                    aiSearchBtn.textContent = 'Searching...';
-                    aiStatus.textContent = 'Searching with AI...';
-                } else {
-                    aiSearchBtn.disabled = false;
-                    aiSearchBtn.textContent = 'AI Search';
-                    // Status will be updated by loadCards or error handling
-                }
+                aiSearchBtn.disabled = isLoading;
+                aiSearchBtn.textContent = isLoading ? 'Searching...' : 'AI Search';
+                aiStatus.textContent = isLoading ? 'Searching with AI...' : aiStatus.textContent; // Keep existing status otherwise
             }
 
             async function callGeminiApi(query, cardsData) {
                  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY_HERE') {
-                     throw new Error("Gemini API key is missing. Please add it to the script.");
+                     throw new Error("Gemini API key is missing or placeholder. Please add it to MemoAI_CONFIG.js.");
+                 }
+                 if (cardsData.length === 0) {
+                    console.log("No cards provided to Gemini for search.");
+                    return []; // No point calling API if no cards match initial filter
                  }
 
-                const cardsJsonString = JSON.stringify(cardsData, null, 2); // Pretty print for readability if needed
+                const cardsJsonString = JSON.stringify(cardsData.map(c => ({ // Send only relevant fields
+                    id: c.id, title: c.title, status: c.status, priority: c.priority, text: c.text.substring(0, 500) // Limit text length?
+                })), null, 2);
 
-                // Construct a more robust prompt
                 const prompt = `
 Context:
-You are an AI assistant helping to search through a list of notes (cards). Below is a JSON array representing all the available cards. Each card has an id, title, creation date (createdAt), status (Open/Closed), priority (Low/Medium/High), and markdown text content.
+You are searching through notes (cards). Below is a JSON array of cards filtered by the user (e.g., only 'Open' status might be included). Each card has an id, title, status, priority, and text content.
 
-Card Data:
+Card Data (currently visible to user):
 ${cardsJsonString}
 
 User Query:
 "${query}"
 
 Task:
-Analyze the user query and the provided card data. Identify which cards match the user's query based on *any* of their fields (id, title, createdAt, status, priority, text). Consider the meaning and context. For date queries, interpret relative dates (e.g., 'last week', 'before 2024') based on the current date if necessary, comparing against the 'createdAt' field (which is in ISO 8601 format).
+Analyze the user query and the provided card data. Identify which cards MATCH the query based on their fields (id, title, status, priority, text). Consider meaning and context.
 
 Output Format:
-Return *only* a valid JSON array containing the integer \`id\`s of the matching cards. For example: [1, 5, 12]
+Return ONLY a valid JSON array containing the integer \`id\`s of the matching cards from the provided list. Example: [1, 5, 12]
 If no cards match, return an empty array: []
-Do not include any other text, explanations, or markdown formatting in your response. Just the JSON array of IDs.
+Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                 `;
 
                 try {
                     const response = await fetch(GEMINI_API_URL, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: prompt }] }],
-                             // Optional: Add safety settings if needed
-                             // safetySettings: [
-                             //   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-                             //   // Add others as needed
-                             // ],
-                             generationConfig: {
-                                // Adjust temperature or other parameters if desired
-                                // temperature: 0.7,
-                                responseMimeType: "application/json", // Request JSON output directly
-                             }
+                            generationConfig: { responseMimeType: "application/json" }
                         }),
                     });
 
                     if (!response.ok) {
                         const errorBody = await response.text();
                         console.error("Gemini API Error Response:", errorBody);
-                        throw new Error(`API request failed with status ${response.status}: ${response.statusText}`);
+                        let detail = `API request failed with status ${response.status}: ${response.statusText}`;
+                        try {
+                             const errJson = JSON.parse(errorBody);
+                             detail = errJson.error?.message || detail;
+                        } catch {}
+                         if (response.status === 400 && detail.includes("API key not valid")) {
+                              throw new Error("Invalid Gemini API Key. Check MemoAI_CONFIG.js.");
+                         }
+                         if (response.status === 429) {
+                              throw new Error("AI Search quota likely exceeded. Try again later.");
+                         }
+                        throw new Error(detail);
                     }
 
                     const data = await response.json();
+                    console.log("Gemini API Raw Response:", JSON.stringify(data, null, 2)); // Debugging
 
-                    // Log the raw response for debugging
-                    console.log("Gemini API Raw Response:", JSON.stringify(data, null, 2));
-
-                    // Extract the text content which should be the JSON array
-                    if (data.candidates && data.candidates.length > 0 &&
-                        data.candidates[0].content && data.candidates[0].content.parts &&
-                        data.candidates[0].content.parts.length > 0)
-                    {
-                        // Gemini might wrap the JSON in ```json ... ```, try to extract it
-                        let responseText = data.candidates[0].content.parts[0].text;
-                        responseText = responseText.trim();
-                        if (responseText.startsWith('```json')) {
-                            responseText = responseText.substring(7, responseText.length - 3).trim();
-                        } else if (responseText.startsWith('```')) {
-                             responseText = responseText.substring(3, responseText.length - 3).trim();
-                        }
-
+                    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        let responseText = data.candidates[0].content.parts[0].text.trim();
+                        // Clean potential markdown fences (optional, as mimeType should prevent)
+                        if (responseText.startsWith('```json')) responseText = responseText.substring(7, responseText.length - 3).trim();
+                        else if (responseText.startsWith('```')) responseText = responseText.substring(3, responseText.length - 3).trim();
 
                         try {
-                             // Parse the cleaned text as JSON
                              const result = JSON.parse(responseText);
                              if (Array.isArray(result) && result.every(item => typeof item === 'number')) {
-                                 return result; // Return the array of IDs
+                                 return result; // Success! Array of IDs.
                              } else {
-                                 console.error("Gemini response was not a valid JSON array of numbers:", result);
-                                 throw new Error("AI response format is incorrect (expected array of IDs).");
+                                 throw new Error("AI response was not a JSON array of numbers.");
                              }
                         } catch(parseError) {
-                             console.error("Failed to parse Gemini response as JSON:", parseError);
-                             console.error("Raw text received:", responseText);
+                             console.error("Failed to parse Gemini JSON:", parseError, "Raw text:", responseText);
                              throw new Error("AI response was not valid JSON.");
                         }
-                    } else if (data.promptFeedback && data.promptFeedback.blockReason) {
-                         console.error("Gemini API request blocked:", data.promptFeedback.blockReason);
-                         throw new Error(`AI request blocked due to: ${data.promptFeedback.blockReason}. Please check safety settings or modify the prompt/query.`);
+                    } else if (data.promptFeedback?.blockReason) {
+                         throw new Error(`AI request blocked: ${data.promptFeedback.blockReason}. Modify query or safety settings.`);
                      } else {
-                         console.error("Unexpected Gemini API response structure:", data);
-                        throw new Error("Received an unexpected response structure from the AI.");
+                         throw new Error("Unexpected AI response structure.");
                     }
-
                 } catch (error) {
                     console.error("Error calling Gemini API:", error);
-                    throw error; // Re-throw to be caught by the caller
+                    throw error; // Re-throw
                 }
             }
 
             async function performAiSearch() {
                 const query = aiSearchInput.value.trim();
                 if (!query) {
-                    // If query is cleared, reload based on checkbox state, clearing AI filter
-                    await loadCards(null);
+                    await loadCards(null); // Clear filter if query is empty
                     return;
                 }
-
-                if (!db) {
-                    aiStatus.textContent = 'Database not ready.';
-                    return;
-                }
+                if (!db) { aiStatus.textContent = 'Database not ready.'; return; }
 
                 showLoading(true);
-
                 try {
-                    // Fetch fresh data for the search context
-                    const allCards = await getAllCardsDb(); // Ensures `allCardsCache` is updated too
+                    // Fetch *all* cards first to ensure cache is up-to-date
+                    await getAllCardsDb(); // This updates allCardsCache
 
-                    if (allCards.length === 0) {
-                        aiStatus.textContent = 'No cards exist to search.';
-                        showLoading(false);
-                        return;
-                    }
-
-                    // **** NEW: Filter cards based on checkbox BEFORE sending to AI ****
-                    let cardsToSearch = allCards;
+                    // Filter based on checkbox *before* sending to AI
+                    let cardsToSearch = allCardsCache;
                     if (showOpenOnlyCheckbox.checked) {
-                        cardsToSearch = allCards.filter(card => card.status === 'Open');
-                        console.log(`AI Search will consider ${cardsToSearch.length} Open cards.`);
+                        cardsToSearch = allCardsCache.filter(card => card.status === 'Open');
                         if (cardsToSearch.length === 0) {
-                            aiStatus.textContent = 'No Open cards exist to search with AI.';
-                            showLoading(false);
-                            // Clear previous AI results visually if any
-                            await loadCards(null); // Show the "No open cards" message
-                            return;
+                             aiStatus.textContent = "No 'Open' cards to search with AI.";
+                             await loadCards(null); // Show the 'no open cards' message
+                             showLoading(false);
+                             return;
                         }
-                    } else {
-                         console.log(`AI Search will consider all ${allCards.length} cards.`);
                     }
-                    // **** END NEW FILTER ****
 
-
-                    // Select relevant fields for the AI from the filtered list.
+                    // Prepare data for AI (only the pre-filtered cards)
                     const cardsForAI = cardsToSearch.map(c => ({
-                        id: c.id,
-                        title: c.title,
-                        createdAt: c.createdAt,
-                        status: c.status,
-                        priority: c.priority,
-                        text: c.text
+                        id: c.id, title: c.title, createdAt: c.createdAt,
+                        status: c.status, priority: c.priority, text: c.text
                     }));
 
                     const matchingIds = await callGeminiApi(query, cardsForAI);
-                    console.log("AI Search Matching IDs (from filtered set):", matchingIds);
+                    console.log("AI Search Matched IDs (from visible set):", matchingIds);
 
-                    // Reload/filter the cards based on the IDs returned by AI.
-                    // loadCards will *also* apply the checkbox filter visually.
+                    // Reload/filter display based on AI results. loadCards will re-apply checkbox filter too.
                     await loadCards(matchingIds);
 
                 } catch (error) {
                     console.error("AI Search failed:", error);
-                    // Try to decode specific Gemini errors if possible
-                    let message = error.message;
-                     if (message.includes("API key not valid")) {
-                         message = "Invalid Gemini API Key. Please check the key in the script.";
-                     } else if (message.includes("quota")) {
-                         message = "AI Search quota exceeded. Please try again later.";
-                     } else if (message.includes("blocked due to")) {
-                         message = `AI Search blocked: ${message.split("blocked due to: ")[1]}`;
-                     }
+                    const message = error.message || "An unknown error occurred.";
                     alert(`AI Search Error: ${message}`);
-                    aiStatus.textContent = `Search Error: ${message.length > 50 ? message.substring(0, 50)+'...' : message}`;
-                     // Optionally show cards based on checkbox on error, or keep the current view
-                     // await loadCards(null);
+                    aiStatus.textContent = `Search Error: ${message.length > 60 ? message.substring(0, 60)+'...' : message}`;
+                    // Optionally revert to showing cards based on checkbox on error
+                    // await loadCards(null);
                 } finally {
                     showLoading(false);
                 }
             }
-			
-			// Add event listeners for AI search
-            aiSearchBtn.addEventListener('click', performAiSearch);
 
-            // Allow searching by pressing Enter in the input field
-            aiSearchInput.addEventListener('keypress', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault(); // Prevent potential form submission if wrapped
-                    performAiSearch();
-                }
+            // --- Event Listeners ---
+
+            // Controls
+            addCardBtn.addEventListener('click', () => openEditModal());
+            exportBtn.addEventListener('click', handleExport);
+            importFileInput.addEventListener('change', handleImport); // Listener on hidden input
+            //importBtnLabel.addEventListener('click', () => importFileInput.click()); // Trigger hidden input
+
+            // Modal
+            editForm.addEventListener('submit', handleSaveCard);
+            cancelEditBtn.addEventListener('click', requestCloseModal);
+            window.addEventListener('click', (event) => { // Close modal on outside click
+                if (event.target === editModal) requestCloseModal();
             });
 
-            // Handle clearing the search input (shows all cards)
-            aiSearchInput.addEventListener('input', () => {
-                if (aiSearchInput.value.trim() === '') {
-                    loadCards(null); // Show all cards
-                }
-            });
-             // Also handle the 'search' event type which triggers on clicking the 'x' in search inputs
-             aiSearchInput.addEventListener('search', () => {
-                 if (aiSearchInput.value.trim() === '') {
-                     loadCards(null); // Show all cards
-                 }
-             });
-
-            // --- **** END NEW AI SEARCH FUNCTIONS **** ---
-			
-			// **** START NEW CHECKBOX EVENT LISTENER ****
+            // Filters & Search
             showOpenOnlyCheckbox.addEventListener('change', () => {
-                console.log("Checkbox changed, reloading cards...");
-                // Check if there's an active AI search query
-                const currentQuery = aiSearchInput.value.trim();
-                if (currentQuery) {
-                    // If there is a query, re-run the AI search.
-                    // performAiSearch will now respect the new checkbox state.
-                    performAiSearch();
-                } else {
-                    // If no query, just reload the cards based on the new checkbox state.
-                    loadCards(null);
-                }
+                // Re-run AI search if active, otherwise just reload based on checkbox
+                aiSearchInput.value.trim() ? performAiSearch() : loadCards(null);
             });
-            // **** END NEW CHECKBOX EVENT LISTENER ****
+            aiSearchBtn.addEventListener('click', performAiSearch);
+            aiSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performAiSearch(); });
+            aiSearchInput.addEventListener('input', () => { if (aiSearchInput.value.trim() === '') loadCards(null); }); // Clear search on empty
+            aiSearchInput.addEventListener('search', () => { if (aiSearchInput.value.trim() === '') loadCards(null); }); // Clear search on 'x' click
 
+            // Drag and Drop Container Listeners
+            cardContainer.addEventListener('dragover', handleDragOver);
+            cardContainer.addEventListener('dragleave', handleDragLeaveContainer);
+            cardContainer.addEventListener('drop', handleDrop);
 
 			// --- Initialization ---
             async function initializeApp() {
                 try {
                     await openDb();
-                    await loadCards(); // Initial load uses cache if populated by getAllCardsDb
+                    await loadCards(); // Initial load
                     console.log("Application initialized.");
                 } catch (error) {
                     console.error("Initialization failed:", error);
-                    alert("Failed to initialize the application. IndexedDB might not be supported or working correctly.");
+                    document.body.innerHTML = `<p style="color: red; padding: 20px;">Error: Failed to initialize application. IndexedDB might be blocked or unavailable. ${error.message}</p>`;
                 }
             }
 
