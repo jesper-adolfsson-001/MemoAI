@@ -7,37 +7,32 @@
 	<!-- Use EasyMDE CDN -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
     <style>
-        /* Basic Styling */
+        /* === Base Styles === */
         body {
             font-family: sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
-            min-height: 100vh; /* Ensure body takes full height for drop */
+            min-height: 100vh;
         }
 
-        .controls {
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
+        /* === General Button & Label Styling === */
         button,
-        .file-upload-label {
+        .file-upload-label { /* Base styles for most buttons/labels acting like buttons */
             padding: 10px 15px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 1em; /* Default size, can be overridden */
             transition: background-color 0.2s ease;
+            display: inline-flex; /* Use flex for alignment */
+            align-items: center;
+            justify-content: center;
+            text-align: center; /* Center text by default */
+            line-height: 1.4; /* Default line height */
+            white-space: nowrap; /* Prevent wrapping by default */
         }
 
         button:hover,
@@ -45,28 +40,12 @@
             background-color: #0056b3;
         }
 
-        button.delete-btn {
-            background-color: #dc3545;
-        }
-        button.delete-btn:hover {
-            background-color: #c82333;
-        }
-        button.edit-btn {
-            background-color: #ffc107;
-            color: #333;
-        }
-        button.edit-btn:hover {
-            background-color: #e0a800;
-        }
-
+        /* === Control Bar (Top Grid) === */
         .controls-grid {
             display: grid;
-            /* Define columns: AddBtn | Checkbox | Search(flexible) | ExportBtn | ImportBtn */
-            /* 1fr for search makes it take available space */
-            grid-template-columns: auto auto 1fr auto auto;
-            /* Define rows: Top row for controls, bottom for status */
-            grid-template-rows: auto auto;
-            align-items: center; /* Vertically center items within their row */
+            grid-template-columns: auto auto 1fr auto auto; /* AddBtn | Checkbox | Search | Export | Import */
+            grid-template-rows: auto auto; /* Controls row | Status row */
+            align-items: center;
             gap: 10px;
             padding: 15px;
             background-color: #fff;
@@ -75,108 +54,109 @@
             margin-bottom: 20px;
         }
 
-        /* --- Place items in the grid --- */
+        /* Grid Item Placements */
+        .controls-grid #add-card-btn { grid-column: 1; grid-row: 1; }
+        .controls-grid .checkbox-wrapper { grid-column: 2; grid-row: 1; }
+        .controls-grid .ai-search-wrapper { grid-column: 3; grid-row: 1; }
+        .controls-grid #export-btn { grid-column: 4; grid-row: 1; }
+        .controls-grid .file-upload-label { grid-column: 5; grid-row: 1; }
+        .controls-grid #ai-status { grid-column: 3; grid-row: 2; }
 
-        /* Row 1 items */
-        .controls-grid #add-card-btn {
-            grid-column: 1;
-            grid-row: 1;
-        }
-
+        /* Control Bar - Specific Element Styling */
         .controls-grid .checkbox-wrapper {
-            grid-column: 2;
-            grid-row: 1;
-            display: flex; /* Align label and checkbox nicely */
+            display: flex;
             align-items: center;
-            gap: 5px; /* Space between label and checkbox */
+            gap: 5px;
         }
-        /* Optional: Style checkbox label text if needed */
         .controls-grid .checkbox-wrapper label {
-             margin-bottom: 0; /* Override default label margin if any */
-             /* You might want font-size, line-height adjustments here */
+             margin-bottom: 0;
+             /* Consider adjusting font-size/line-height if needed */
         }
-
 
         .controls-grid .ai-search-wrapper {
-            grid-column: 3;
-            grid-row: 1; /* Occupy only the first row */
-            /* No longer needs flex direction column here */
+            width: 100%; /* Ensure wrapper takes full column width */
         }
 
-        .controls-grid #export-btn {
-            grid-column: 4;
-            grid-row: 1;
-        }
-
-        .controls-grid .file-upload-label { /* This is the styled button for import */
-            grid-column: 5;
-            grid-row: 1;
-            /* Ensure it aligns well as a button */
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Hidden file input - no grid placement needed */
-        /* #import-file */
-
-        /* --- Content within grid cells --- */
-
-        .ai-search-row {
-            display: flex; /* Keep input and button side-by-side */
+        .controls-grid .ai-search-row {
+            display: flex;
             gap: 5px;
-            width: 100%; /* Ensure it fills the grid column */
+            width: 100%;
         }
 
-        #ai-search-input {
-            flex-grow: 1; /* Allow input to take available space */
-            padding: 8px 10px; /* Adjust padding to match button height */
+        .controls-grid #ai-search-input {
+            flex-grow: 1;
+            padding: 8px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 1em;
-            min-width: 100px; /* Prevent it from becoming too small */
-        }
-        /* Ensure search button height matches input */
-        #ai-search-btn {
-            flex-shrink: 0; /* Prevent button from shrinking */
+            min-width: 100px;
         }
 
-        /* Row 2 item: AI Status */
-        #ai-status {
-            grid-column: 3; /* Align under the search input */
-            grid-row: 2;    /* Place in the second row */
-            margin-top: 2px; /* Small gap from the input row */
-            padding-left: 2px; /* Slight indent might look good */
+        /* Control Bar - Smaller Buttons (Search, Summarize, Export, Import) */
+        .controls-grid #ai-search-btn,
+        .controls-grid #ai-summarize-btn,
+        .controls-grid #export-btn,
+        .controls-grid .file-upload-label {
+            font-size: 0.85em;   /* Reduced font size */
+            line-height: 1.3;    /* Adjusted line height */
+            white-space: normal; /* Allow text wrapping */
+            padding: 8px 10px;   /* Adjusted padding */
+            flex-shrink: 0;      /* Prevent shrinking in flex layout */
+        }
+         /* Only Search/Summarize need flex-shrink in the ai-search-row context,
+            but applying to all small buttons here is harmless */
+
+        /* Control Bar - AI Status Text */
+        .controls-grid #ai-status {
+            margin-top: 2px;
+            padding-left: 2px;
             font-style: italic;
             color: #555;
             font-size: 0.85em;
-            /* Remove position/transform styles if any were added */
         }
 
+        /* Hidden file input */
+        #import-file {
+            display: none;
+        }
 
+        /* === Card Container & Drag/Drop === */
         #card-container {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
-            padding: 10px; /* Add some padding */
-            min-height: 300px; /* Ensure drop zone has some height */
-            position: relative; /* Needed for absolute positioning of drop line */
+            padding: 10px;
+            min-height: 300px;
+            position: relative; /* For drop line */
         }
 
-        /* Card Styling */
+        .drop-line-indicator {
+            position: absolute;
+            top: 10px;
+            bottom: 10px;
+            width: 3px;
+            background-color: #007bff;
+            border-radius: 2px;
+            opacity: 0.7;
+            pointer-events: none;
+            display: none;
+            z-index: 5;
+            transition: left 0.1s ease-out, top 0.1s ease-out, height 0.1s ease-out; /* Added more transitions */
+        }
+
+        /* === Card Styling === */
         .card {
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
-            width: 250px; /* Adjust width as needed */
+            width: 250px;
             display: flex;
             flex-direction: column;
             cursor: grab;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            position: relative; /* Needed for absolute positioning if used, good practice */
-            order: var(--order, 0); /* Use CSS variable for order initially */
-            /* Ensure cards don't shrink below their content */
+            transition: transform 0.2s ease, box-shadow 0.2s ease, outline 0.3s ease-in-out;
+            position: relative;
+            order: var(--order, 0);
             flex-shrink: 0;
         }
 
@@ -185,30 +165,38 @@
             cursor: grabbing;
             box-shadow: 0 8px 15px rgba(0,0,0,0.2);
             transform: scale(1.05);
-            /* Make sure dragging item is above others, including drop line potentially */
             z-index: 10;
         }
 
-        .card-title {
-            margin: 0 0 5px 0; /* Reduced bottom margin */
-            font-size: 1.2em;
-            font-weight: bold;
-            word-wrap: break-word; /* Prevent long titles from overflowing */
+        .card.highlighted-card {
+            outline: 3px solid #007bff;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
+            /* Transition is already on the base .card */
         }
 
-        /* --- NEW: Metadata Styling --- */
-		.meta-fields {
-			display: flex;
-			gap: 10px;
-			justify-content: space-between;
-			flex-wrap: wrap; /* Optional: lets them wrap if small screen */
-		}
+        .card.status-closed {
+            text-decoration: line-through;
+            color: #888;
+             /* Consider reducing opacity slightly too */
+             /* opacity: 0.8; */
+        }
+        .card.status-closed .card-title,
+        .card.status-closed .card-content {
+            color: #888; /* Ensure content also gets greyed out */
+        }
+        .card.status-closed .priority-label {
+             opacity: 0.7; /* Dim priority label for closed cards */
+        }
 
-		.meta-fields .form-group {
-			flex: 1; /* So they share the space equally */
-			min-width: 150px; /* Prevents them from shrinking too much */
-		}
 
+        /* Card Content Elements */
+        .card-title {
+            margin: 0 0 5px 0;
+            font-size: 1.2em;
+            font-weight: bold;
+            word-wrap: break-word;
+            color: #333; /* Explicit default color */
+        }
 
         .card-meta {
             font-size: 0.8em;
@@ -221,10 +209,13 @@
             margin-bottom: 3px;
         }
         .card-meta strong {
-             color: #333;
-             min-width: 55px; /* Align labels */
+             color: #444; /* Slightly darker labels */
+             min-width: 55px;
              display: inline-block;
+             font-weight: 600;
         }
+
+        /* Card Metadata Labels */
         .priority-label {
             display: inline-block;
             padding: 2px 6px;
@@ -233,33 +224,39 @@
             font-weight: bold;
             color: white;
             text-transform: uppercase;
+            line-height: 1.2; /* Adjust line height for small label */
         }
         .priority-high { background-color: #dc3545; }
         .priority-medium { background-color: #ffc107; color: #333; }
         .priority-low { background-color: #28a745; }
-        .status-closed { text-decoration: line-through; color: #888; }
-        /* --- End Metadata Styling --- */
 
-
+        /* Card Content Area */
         .card-content {
-            flex-grow: 1; /* Allows content to fill space */
+            flex-grow: 1;
             margin-bottom: 15px;
-            word-wrap: break-word; /* Prevent long content from overflowing */
-            overflow-y: auto; /* Add scroll if content too long */
-            max-height: 200px; /* Limit initial height */
-            font-size: 0.95em; /* Slightly smaller font for content */
+            word-wrap: break-word;
+            overflow-y: auto;
+            max-height: 200px;
+            font-size: 0.95em;
+            color: #333; /* Explicit default color */
+            line-height: 1.5; /* Improve readability */
         }
-         /* Basic Markdown styling for display */
-        .card-content h1, .card-content h2, .card-content h3 { margin-top: 0.5em; margin-bottom: 0.3em; font-size: 1.1em; }
+
+        /* Card Content Markdown Styles */
+        .card-content h1,
+        .card-content h2,
+        .card-content h3 { margin: 0.7em 0 0.3em 0; font-size: 1.1em; font-weight: 600; }
         .card-content p { margin: 0.5em 0; }
-        .card-content ul, .card-content ol { margin: 0.5em 0; padding-left: 1.5em; }
-        .card-content code { background-color: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
-        .card-content pre { background-color: #eee; padding: 10px; border-radius: 3px; overflow-x: auto; font-family: monospace;}
-        .card-content blockquote { border-left: 3px solid #ccc; margin-left: 0; padding-left: 1em; color: #666; }
+        .card-content ul,
+        .card-content ol { margin: 0.5em 0; padding-left: 1.7em; }
+        .card-content li { margin-bottom: 0.25em; }
+        .card-content code { background-color: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+        .card-content pre { background-color: #eee; padding: 10px; border-radius: 3px; overflow-x: auto; font-family: monospace; font-size: 0.9em; margin: 0.8em 0; }
+        .card-content blockquote { border-left: 3px solid #ccc; margin: 0.8em 0; padding-left: 1em; color: #666; }
         .card-content a { color: #007bff; text-decoration: none; }
         .card-content a:hover { text-decoration: underline; }
 
-
+        /* Card Actions (Buttons at bottom of card) */
         .card-actions {
             display: flex;
             justify-content: flex-end;
@@ -267,120 +264,159 @@
             margin-top: auto; /* Pushes actions to the bottom */
         }
 
-        .card-actions button {
+        .card-actions button { /* Specific styles for buttons inside cards */
             padding: 5px 10px;
             font-size: 0.9em;
+            white-space: nowrap; /* Keep these buttons single line */
         }
 
-        /* Modal Styling */
+        .card-actions .edit-btn { /* Inherits base button styles */
+            background-color: #ffc107;
+            color: #333;
+        }
+        .card-actions .edit-btn:hover {
+            background-color: #e0a800;
+        }
+
+        .card-actions .delete-btn { /* Inherits base button styles */
+            background-color: #dc3545;
+            color: white; /* Explicitly set white */
+        }
+        .card-actions .delete-btn:hover {
+            background-color: #c82333;
+        }
+
+        /* === Modal Styling === */
         .modal {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 1000; /* Sit on top */
+            display: none;
+            position: fixed;
+            z-index: 1000;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto; /* Enable scroll if needed */
-            background-color: rgba(0,0,0,0.5); /* Black w/ opacity */
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
         }
 
         .modal-content {
             background-color: #fefefe;
-            margin: 5% auto; /* Adjusted margin for potentially taller modal */
+            margin: 5% auto;
             padding: 30px;
             border: 1px solid #888;
-            width: 80%; /* Could be more or less, depending on screen size */
-            max-width: 700px; /* Increased max-width */
+            width: 80%;
+            max-width: 700px;
             border-radius: 8px;
             position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Add subtle shadow */
         }
 
         .modal-content h2 {
             margin-top: 0;
+            margin-bottom: 20px; /* Add space below title */
+            font-size: 1.5em; /* Slightly larger modal title */
+            color: #333;
         }
 
+        /* Modal Form Elements */
+        .modal-content .form-group {
+             margin-bottom: 20px; /* Increased spacing */
+        }
         .modal-content label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px; /* Increased space below label */
             font-weight: bold;
+            color: #555;
         }
 
         .modal-content input[type="text"],
-        .modal-content input[type="datetime-local"], /* Style new input */
-        .modal-content select, /* Style new select */
-        .modal-content textarea /* Target the underlying textarea EasyMDE uses */
+        .modal-content input[type="datetime-local"],
+        .modal-content select,
+        .modal-content .EasyMDEContainer textarea /* Target EasyMDE via its container */
          {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
+            padding: 10px 12px;
+            margin-bottom: 0; /* Remove margin-bottom here, handled by form-group */
             border: 1px solid #ccc;
             border-radius: 4px;
-            box-sizing: border-box; /* Include padding and border in element's total width and height */
-            font-size: 1em; /* Ensure consistent font size */
+            box-sizing: border-box;
+            font-size: 1em;
         }
+         /* Specific style adjustment for EasyMDE */
+        .modal-content .EasyMDEContainer {
+             border: 1px solid #ccc; /* Add border around EasyMDE */
+             border-radius: 4px;
+        }
+         .modal-content .CodeMirror {
+              border: none; /* Remove default CodeMirror border */
+         }
 
 
-
-		/* Toolbar background */
-		.modal-content .editor-toolbar {
-			background: #a8a8a8;
-			border-bottom: 1px solid #ccc;
-			padding: 4px;
-			border-radius: 5px 5px 0 0;
+        /* Modal Metadata Fields Layout */
+        .modal-content .meta-fields {
+			display: flex;
+			gap: 15px; /* Increased gap */
+			justify-content: space-between;
+			flex-wrap: wrap;
+            margin-bottom: 10px; /* Space below meta fields */
+		}
+		.modal-content .meta-fields .form-group {
+			flex: 1; /* Share space */
+			min-width: 160px; /* Prevent shrinking too much */
+            margin-bottom: 10px; /* Spacing within the flex row */
 		}
 
-
-		.editor-toolbar button {
-			color: black; /* or whatever color you want */
+        /* Modal Editor Toolbar */
+		.modal-content .editor-toolbar {
+			background: #f0f0f0; /* Lighter background */
+			border: 1px solid #ccc;
+            border-bottom: none; /* Attach to top of editor */
+			padding: 4px;
+			border-radius: 4px 4px 0 0; /* Rounded top corners */
+            margin-bottom: 0; /* Remove default margin */
+		}
+		.modal-content .editor-toolbar button {
+            /* Inherits base button styles */
+			color: #333; /* Darker icon color */
 			background-color: transparent;
 			border: none;
-			padding: 5px;
+			padding: 6px; /* Slightly larger padding */
+            font-size: 1em; /* Reset font size if base changed it */
 		}
-
-
-        /* Adjust label margin */
-        .modal-content .form-group {
-             margin-bottom: 15px;
-        }
-        .modal-content .form-group label {
-             margin-bottom: 5px;
+        .modal-content .editor-toolbar button:hover {
+             background-color: #ddd; /* Subtle hover */
         }
 
+
+        /* Modal Action Buttons */
         .modal-actions {
             display: flex;
             justify-content: flex-end;
             gap: 10px;
-            margin-top: 20px;
+            margin-top: 25px; /* More space above buttons */
         }
-
-        #cancel-edit-btn {
+        /* Modal buttons inherit base styles */
+        .modal-actions #cancel-edit-btn {
             background-color: #6c757d;
         }
-        #cancel-edit-btn:hover {
+        .modal-actions #cancel-edit-btn:hover {
             background-color: #5a6268;
         }
+        /* #save-card-btn uses the default blue */
 
-        /* Hide file input visually but keep it accessible */
-        #import-file {
-            display: none;
+
+        /* === Summary Popup Styles === */
+        /* (These styles only apply inside the popup window) */
+        /* Grouped here for clarity, even though they aren't used by the main page */
+        .summary-popup-content { /* This class is used INSIDE the popup's HTML */
+             font-family: sans-serif;
+             padding: 20px 25px; /* More horizontal padding */
+             font-size: 15px;
+             line-height: 1.6;
+             /* Styles below moved to popup's internal <style> tag for encapsulation */
         }
-
-        /* --- NEW Drop Line Indicator Styling --- */
-        .drop-line-indicator {
-            position: absolute;
-            top: 10px; /* Match container padding */
-            bottom: 10px; /* Match container padding */
-            width: 3px; /* Line thickness */
-            background-color: #007bff; /* Blue color */
-            border-radius: 2px;
-            opacity: 0.7;
-            pointer-events: none; /* Prevent it from interfering with mouse events */
-            display: none; /* Hidden by default */
-            z-index: 5; /* Above cards, below dragging card */
-            transition: left 0.1s ease-out; /* Smooth horizontal movement */
-        }
-
+        /* Removed detailed popup styles from main CSS as they are now embedded */
+        /* in the popup's generated HTML for better isolation. */
     </style>
 </head>
 <body>
@@ -395,10 +431,12 @@
 
 		<div class="ai-search-wrapper">
 			<div class="ai-search-row">
-				<input type="search" id="ai-search-input" placeholder="AI Search Query... (All your notes will be sent to Google AI API; use at your own discretion)">
+				<input type="search" id="ai-search-input" placeholder="AI Query... (Data sent to Google AI API)">
 				<button id="ai-search-btn">AI Search</button>
+                <!-- <<< START NEW BUTTON >>> -->
+                <button id="ai-summarize-btn">AI Summarize</button>
+                <!-- <<< END NEW BUTTON >>> -->
 			</div>
-
 		</div>
 
 		<span id="ai-status"></span>
@@ -486,6 +524,38 @@
 	<script src="MemoAI_CONFIG.js"></script>
 
     <script>
+        // <<< START NEW FUNCTION: HIGHLIGHT CARD (GLOBAL SCOPE NEEDED FOR POPUP) >>>
+        // Make this function globally accessible for the popup window's onclick handler
+        function highlightCard(cardId) {
+            const cardContainer = document.getElementById('card-container'); // Get container inside function
+            if (!cardContainer) return;
+
+            // Remove existing highlights first
+            cardContainer.querySelectorAll('.card.highlighted-card').forEach(card => {
+                card.classList.remove('highlighted-card');
+            });
+
+            const cardElement = cardContainer.querySelector(`.card[data-id="${cardId}"]`);
+            if (cardElement) {
+                console.log(`Highlighting card ID: ${cardId}`);
+                cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                cardElement.classList.add('highlighted-card');
+
+                // Optional: Remove highlight after a delay
+                setTimeout(() => {
+                    if (cardElement.classList.contains('highlighted-card')) {
+                         cardElement.classList.remove('highlighted-card');
+                    }
+                }, 3000); // Keep highlight for 3 seconds
+            } else {
+                console.warn(`Card ID ${cardId} not found in the main window to highlight.`);
+                // Optionally alert the user if the card is no longer visible (e.g., due to filter change)
+                // alert(`Note with ID ${cardId} is not currently visible.`);
+            }
+        }
+        // <<< END NEW FUNCTION: HIGHLIGHT CARD >>>
+
+
         document.addEventListener('DOMContentLoaded', () => {
             // --- Global Variables ---
             const dbName = 'MarkdownCardsDB';
@@ -495,6 +565,7 @@
             let draggedItem = null;
 			let dropTargetElement = null; // NEW: To store the element to insert before
             let originalCardDataBeforeEdit = null; // To store original data before editing
+            let summaryWindow = null; // <<< NEW: Keep track of the summary popup window
 
             // --- DOM Elements ---
             const cardContainer = document.getElementById('card-container');
@@ -506,6 +577,7 @@
             const showOpenOnlyCheckbox = document.getElementById('show-open-only-checkbox');
             const aiSearchInput = document.getElementById('ai-search-input');
             const aiSearchBtn = document.getElementById('ai-search-btn');
+            const aiSummarizeBtn = document.getElementById('ai-summarize-btn'); // <<< NEW: Summarize button
             const aiStatus = document.getElementById('ai-status');
             const editModal = document.getElementById('edit-modal');
             const modalTitle = document.getElementById('modal-title');
@@ -528,7 +600,7 @@
 
 
             // --- IndexedDB Functions ---
-
+            // ... (keep existing IndexedDB functions: openDb, getStore, addCardDb, getAllCardsDb, getCardDb, updateCardDb, deleteCardDb, clearAllCardsDb) ...
             function openDb() {
                 return new Promise((resolve, reject) => {
                     const request = indexedDB.open(dbName, 1); // Version 1
@@ -651,7 +723,9 @@
                 });
             }
 
+
             // --- Helper Functions ---
+            // ... (keep existing helpers: formatDisplayDate, formatInputDateTimeLocal) ...
             function formatDisplayDate(isoString) {
                 if (!isoString) return 'N/A';
                 try {
@@ -687,7 +761,8 @@
 
 
             // --- Card Rendering ---
-            function renderCard(cardData) {
+            // ... (keep existing renderCard function) ...
+             function renderCard(cardData) {
                 const cardClone = cardTemplate.content.cloneNode(true);
                 const cardElement = cardClone.querySelector('.card');
                 const titleElement = cardElement.querySelector('.card-title');
@@ -728,7 +803,7 @@
                 // Add event listeners
                 editBtn.addEventListener('click', () => handleEdit(cardData.id));
                 deleteBtn.addEventListener('click', () => handleDelete(cardData.id));
-				
+
 				// Double-click to edit
 				cardElement.addEventListener('dblclick', () => handleEdit(cardData.id));
 
@@ -741,7 +816,9 @@
                 return cardElement;
             }
 
+
             // --- Card Loading & Filtering ---
+            // ... (keep existing loadCards function) ...
 			async function loadCards(filterIds = null) {
                 // Clear only cards, keep the indicator line element
                 Array.from(cardContainer.querySelectorAll('.card')).forEach(card => card.remove());
@@ -794,7 +871,8 @@
             }
 
             // --- Modal Handling ---
-            function openEditModal(card = null) {
+            // ... (keep existing modal functions: openEditModal, hasUnsavedChanges, requestCloseModal, closeEditModal, handleSaveCard, handleEdit, handleDelete) ...
+             function openEditModal(card = null) {
                 originalCardDataBeforeEdit = null;
 
                 if (easyMDEInstance) {
@@ -968,8 +1046,10 @@
                 }
             }
 
+
             // --- Import/Export ---
-            async function handleExport() {
+            // ... (keep existing handleExport and handleImport functions) ...
+             async function handleExport() {
                 try {
                     const cards = await getAllCardsDb();
                     const cardsToExport = cards.map(c => ({ // Ensure all needed fields are present
@@ -1033,8 +1113,8 @@
             }
 
 
-             // --- Drag and Drop Logic (Refactored) ---
-
+             // --- Drag and Drop Logic ---
+             // ... (keep existing drag/drop functions: handleDragStart, handleDragEnd, handleDragOver, handleDragLeaveContainer, handleDrop, getDragAfterElement, showDropLineIndicator, hideDropLineIndicator, updateCardOrderInDb) ...
              function handleDragStart(e) {
 				 draggedItem = e.target; // The card being dragged
                  setTimeout(() => { // Apply dragging style slightly after drag starts
@@ -1068,7 +1148,7 @@
 				// Show the indicator based on the *stored* target
 				showDropLineIndicator(container, dropTargetElement);
 			}
-			
+
 			function handleDragLeaveContainer(e) {
 				 // Hide the line only if the mouse truly leaves the container boundary
 				 if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -1132,7 +1212,7 @@
 					}
 				});
 
-               
+
                 const closestElement = closest.element;
 
 				// Step 2: Decide where to insert relative to the closest element
@@ -1214,9 +1294,7 @@
                      dropLineIndicator.style.display = 'none';
                  }
             }
-			
-			
-			// End Drag and Drop
+
 
 			async function updateCardOrderInDb() {
                 // *** CORRECTED SELECTOR ***
@@ -1269,15 +1347,26 @@
                 }
             }
 
+
 			// --- AI Search Functions ---
 
-            function showLoading(isLoading) {
+            function showLoading(isLoading, actionType = 'Search') { // <<< Modified for different actions
+                const isSearch = actionType === 'Search';
+                const buttonToModify = isSearch ? aiSearchBtn : aiSummarizeBtn;
+                const buttonText = isSearch ? 'AI Search' : 'AI Summarize';
+                const loadingText = isSearch ? 'Searching...' : 'Summarizing...';
+                const statusText = isSearch ? 'Searching with AI...' : 'Summarizing with AI...';
+
+                // Disable both buttons during any AI action
                 aiSearchBtn.disabled = isLoading;
-                aiSearchBtn.textContent = isLoading ? 'Searching...' : 'AI Search';
-                aiStatus.textContent = isLoading ? 'Searching with AI...' : aiStatus.textContent; // Keep existing status otherwise
+                aiSummarizeBtn.disabled = isLoading;
+
+                buttonToModify.textContent = isLoading ? loadingText : buttonText;
+                aiStatus.textContent = isLoading ? statusText : aiStatus.textContent; // Keep existing status otherwise
             }
 
-            async function callGeminiApi(query, cardsData) {
+            // Existing callGeminiApi for search remains the same
+             async function callGeminiApi(query, cardsData) {
                  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY_HERE') {
                      throw new Error("Gemini API key is missing or placeholder. Please add it to MemoAI_CONFIG.js.");
                  }
@@ -1287,7 +1376,7 @@
                  }
 
                 const cardsJsonString = JSON.stringify(cardsData.map(c => ({ // Send only relevant fields
-                    id: c.id, title: c.title, status: c.status, priority: c.priority, text: c.text.substring(0, 500) // Limit text length?
+                    id: c.id, title: c.title, status: c.status, priority: c.priority, text: c.text.substring(0, 800) // Limit text length slightly more?
                 })), null, 2);
 
                 const prompt = `
@@ -1310,12 +1399,13 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                 `;
 
                 try {
+                    console.log("Calling Gemini API for Search...");
                     const response = await fetch(GEMINI_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
+                            generationConfig: { responseMimeType: "application/json" } // Request JSON directly
                         }),
                     });
 
@@ -1330,6 +1420,9 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                          if (response.status === 400 && detail.includes("API key not valid")) {
                               throw new Error("Invalid Gemini API Key. Check MemoAI_CONFIG.js.");
                          }
+                          if (response.status === 403 && detail.includes("permission")) {
+                            throw new Error("API Key is likely missing permissions for the Generative Language API. Enable it in Google Cloud Console.");
+                         }
                          if (response.status === 429) {
                               throw new Error("AI Search quota likely exceeded. Try again later.");
                          }
@@ -1337,13 +1430,13 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                     }
 
                     const data = await response.json();
-                    console.log("Gemini API Raw Response:", JSON.stringify(data, null, 2)); // Debugging
+                    console.log("Gemini API Raw Response (Search):", JSON.stringify(data, null, 2)); // Debugging
 
                     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
                         let responseText = data.candidates[0].content.parts[0].text.trim();
                         // Clean potential markdown fences (optional, as mimeType should prevent)
-                        if (responseText.startsWith('```json')) responseText = responseText.substring(7, responseText.length - 3).trim();
-                        else if (responseText.startsWith('```')) responseText = responseText.substring(3, responseText.length - 3).trim();
+                        // if (responseText.startsWith('```json')) responseText = responseText.substring(7, responseText.length - 3).trim();
+                        // else if (responseText.startsWith('```')) responseText = responseText.substring(3, responseText.length - 3).trim();
 
                         try {
                              const result = JSON.parse(responseText);
@@ -1353,16 +1446,23 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                                  throw new Error("AI response was not a JSON array of numbers.");
                              }
                         } catch(parseError) {
-                             console.error("Failed to parse Gemini JSON:", parseError, "Raw text:", responseText);
+                             console.error("Failed to parse Gemini JSON (Search):", parseError, "Raw text:", responseText);
                              throw new Error("AI response was not valid JSON.");
                         }
                     } else if (data.promptFeedback?.blockReason) {
                          throw new Error(`AI request blocked: ${data.promptFeedback.blockReason}. Modify query or safety settings.`);
-                     } else {
-                         throw new Error("Unexpected AI response structure.");
+                     } else if (!data.candidates || data.candidates.length === 0){
+                        // Handle cases where the model returns no candidates (e.g., content filter)
+                        const blockReason = data.promptFeedback?.blockReason || 'Unknown reason (possibly content safety)';
+                        const safetyRatings = data.promptFeedback?.safetyRatings ? JSON.stringify(data.promptFeedback.safetyRatings) : 'N/A';
+                         console.warn("Gemini returned no candidates. Block Reason:", blockReason, "Safety Ratings:", safetyRatings);
+                        throw new Error(`AI response was empty. Block Reason: ${blockReason}.`);
+                     }
+                     else {
+                         throw new Error("Unexpected AI response structure (Search).");
                     }
                 } catch (error) {
-                    console.error("Error calling Gemini API:", error);
+                    console.error("Error calling Gemini API (Search):", error);
                     throw error; // Re-throw
                 }
             }
@@ -1375,7 +1475,7 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                 }
                 if (!db) { aiStatus.textContent = 'Database not ready.'; return; }
 
-                showLoading(true);
+                showLoading(true, 'Search');
                 try {
                     // Fetch *all* cards first to ensure cache is up-to-date
                     await getAllCardsDb(); // This updates allCardsCache
@@ -1387,7 +1487,7 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                         if (cardsToSearch.length === 0) {
                              aiStatus.textContent = "No 'Open' cards to search with AI.";
                              await loadCards(null); // Show the 'no open cards' message
-                             showLoading(false);
+                             showLoading(false, 'Search');
                              return;
                         }
                     }
@@ -1412,9 +1512,424 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                     // Optionally revert to showing cards based on checkbox on error
                     // await loadCards(null);
                 } finally {
-                    showLoading(false);
+                    showLoading(false, 'Search');
                 }
             }
+
+            // --- <<< NEW: AI Summarizer Functions >>> ---
+
+            async function callGeminiApiForSummary(query, cardsData) {
+                if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY_HERE') {
+                    throw new Error("Gemini API key is missing or placeholder. Please add it to MemoAI_CONFIG.js.");
+                }
+                if (cardsData.length === 0) {
+                    console.log("No cards provided to Gemini for summary.");
+                    return { summary: "No cards found to summarize based on the current filter.", references: [] };
+                }
+
+                // Limit text sent per card to keep prompt size reasonable
+                const MAX_TEXT_LENGTH = 1000;
+                const cardsJsonString = JSON.stringify(cardsData.map(c => ({
+                    id: c.id,
+                    title: c.title,
+                    status: c.status, // Include status/priority as context
+                    priority: c.priority,
+                    text: c.text ? c.text.substring(0, MAX_TEXT_LENGTH) + (c.text.length > MAX_TEXT_LENGTH ? '...' : '') : ''
+                })), null, 2);
+
+                const prompt = `
+Context:
+You are an AI assistant summarizing notes (cards) based on a user query. Below is a JSON array of cards potentially relevant to the query. These cards might be pre-filtered by the user (e.g., only 'Open' status cards). Each card has an id, title, status, priority, and text content.
+
+Card Data:
+${cardsJsonString}
+
+User Query:
+"${query}"
+
+Task:
+1.  Carefully read the User Query and analyze the provided Card Data.
+2.  Synthesize a concise summary based on the information in the cards that is relevant to the user's query. Focus on the key points and themes related to the query found across the notes.
+3.  Identify the specific cards used to generate the summary. For each referenced card, provide its \`id\`, \`title\`, and a very brief (1-sentence max) reason why it was included in the summary context.
+4.  Format the output STRICTLY as a single JSON object with two keys:
+    *   \`summary\`: A string containing the generated summary in Markdown format.
+    *   \`references\`: An array of objects, where each object has the following keys:
+        *   \`id\`: The integer ID of the referenced card.
+        *   \`title\`: The string title of the referenced card.
+        *   \`reason\`: A brief string explaining the card's relevance to the summary.
+
+Example Output JSON:
+{
+  "summary": "Based on the query about 'Project Alpha', the notes indicate that the *design phase* is complete (see 'Alpha Design Spec') and the team is currently working on *backend implementation* ('Alpha Backend Tasks'). There are some concerns about the timeline mentioned in the 'Meeting Notes'.",
+  "references": [
+    { "id": 5, "title": "Alpha Design Spec", "reason": "Provides details on the completed design phase." },
+    { "id": 12, "title": "Alpha Backend Tasks", "reason": "Lists the current implementation tasks." },
+    { "id": 8, "title": "Meeting Notes", "reason": "Mentions potential timeline issues." }
+  ]
+}
+
+Important Constraints:
+*   Return ONLY the JSON object. No introductory text, no explanations, no markdown code fences around the JSON.
+*   Ensure the \`id\` in the references corresponds EXACTLY to an ID from the provided Card Data.
+*   If no cards contain information relevant to the query, return a JSON object like this:
+    { "summary": "No relevant information found in the provided notes for the query: '${query}'", "references": [] }
+                `;
+
+                try {
+                    console.log("Calling Gemini API for Summary...");
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { responseMimeType: "application/json" } // Request JSON directly
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        console.error("Gemini API Error Response (Summary):", errorBody);
+                        let detail = `API request failed with status ${response.status}: ${response.statusText}`;
+                        try { const errJson = JSON.parse(errorBody); detail = errJson.error?.message || detail; } catch {}
+                         if (response.status === 400 && detail.includes("API key not valid")) {
+                              throw new Error("Invalid Gemini API Key. Check MemoAI_CONFIG.js.");
+                         }
+                          if (response.status === 403 && detail.includes("permission")) {
+                            throw new Error("API Key is likely missing permissions for the Generative Language API. Enable it in Google Cloud Console.");
+                         }
+                         if (response.status === 429) {
+                              throw new Error("AI Summary quota likely exceeded. Try again later.");
+                         }
+                        throw new Error(detail);
+                    }
+
+                    const data = await response.json();
+                     console.log("Gemini API Raw Response (Summary):", JSON.stringify(data, null, 2)); // Debugging
+
+                    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        let responseText = data.candidates[0].content.parts[0].text.trim();
+                         try {
+                            const result = JSON.parse(responseText);
+                            // Validate the structure
+                            if (typeof result === 'object' && result !== null &&
+                                typeof result.summary === 'string' &&
+                                Array.isArray(result.references) &&
+                                result.references.every(ref => typeof ref === 'object' && ref !== null && typeof ref.id === 'number' && typeof ref.title === 'string' && typeof ref.reason === 'string')
+                            ) {
+                                return result; // Success! Valid summary object.
+                            } else {
+                                console.error("Parsed JSON (Summary) has incorrect structure:", result);
+                                throw new Error("AI response structure was invalid (missing summary/references or incorrect types).");
+                            }
+                        } catch (parseError) {
+                            console.error("Failed to parse Gemini JSON (Summary):", parseError, "Raw text:", responseText);
+                            throw new Error("AI response was not valid JSON.");
+                        }
+                    } else if (data.promptFeedback?.blockReason) {
+                         throw new Error(`AI request blocked: ${data.promptFeedback.blockReason}. Modify query or safety settings.`);
+                    } else if (!data.candidates || data.candidates.length === 0){
+                        const blockReason = data.promptFeedback?.blockReason || 'Unknown reason (possibly content safety)';
+                        const safetyRatings = data.promptFeedback?.safetyRatings ? JSON.stringify(data.promptFeedback.safetyRatings) : 'N/A';
+                         console.warn("Gemini returned no candidates for summary. Block Reason:", blockReason, "Safety Ratings:", safetyRatings);
+                        throw new Error(`AI response for summary was empty. Block Reason: ${blockReason}.`);
+                     }
+                    else {
+                        throw new Error("Unexpected AI response structure (Summary).");
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini API (Summary):", error);
+                    throw error; // Re-throw
+                }
+            }
+
+            function formatSummaryForPopup(summaryData) {
+                if (!window.marked) {
+                    console.error("Marked library not loaded. Cannot render Markdown.");
+                    // Fallback to plain text or simple HTML
+                     let fallbackHtml = `<h2>Summary</h2><p>${summaryData.summary.replace(/\n/g, '<br>')}</p><h2>References</h2>`;
+                     if (summaryData.references && summaryData.references.length > 0) {
+                         fallbackHtml += '<ul>';
+                         summaryData.references.forEach(ref => {
+                             fallbackHtml += `<li><a href="#" onclick="window.opener.highlightCard(${ref.id}); return false;">${ref.title || 'Untitled'}</a>: ${ref.reason}</li>`;
+                         });
+                         fallbackHtml += '</ul>';
+                     } else {
+                         fallbackHtml += '<p>No specific notes referenced.</p>';
+                     }
+                    return fallbackHtml;
+                }
+
+                marked.use({ breaks: true, gfm: true }); // Ensure options are set
+
+                let markdownString = `## Summary\n\n${summaryData.summary}\n\n## References\n\n`;
+
+                if (summaryData.references && summaryData.references.length > 0) {
+                    summaryData.references.forEach(ref => {
+                        // Escape title for use in HTML attribute and display
+                        const escapedTitle = (ref.title || 'Untitled')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+                        // Use javascript:void(0) or # for href, onclick handles the action
+                        markdownString += `*   <a href="javascript:void(0)" onclick="window.opener.highlightCard(${ref.id}); return false;" title="Click to highlight note ID ${ref.id}">${escapedTitle}</a>: ${ref.reason}\n`;
+                    });
+                } else {
+                    markdownString += "*No specific notes were cited for this summary.*";
+                }
+
+                return marked.parse(markdownString); // Return rendered HTML
+            }
+
+            function displaySummaryPopup(htmlContent, query) {
+                const windowName = "MemoAISummaryWindow";
+                const windowFeatures = "width=700,height=600,resizable=yes,scrollbars=yes"; // Slightly taller
+
+                // Try to focus existing window first
+                if (summaryWindow && !summaryWindow.closed) {
+                    summaryWindow.focus();
+                } else {
+                    // Open the window *immediately* with about:blank, but we'll quickly overwrite it
+                    summaryWindow = window.open("", windowName, windowFeatures);
+                    if (!summaryWindow) {
+                        alert("Popup blocked! Please allow popups for this site to see the summary.");
+                        return; // Exit if popup failed to open
+                    }
+                    // Give the browser a tiny moment to establish the window handle before writing
+                    // This *might* slightly reduce the flash of "about:blank" title in some browsers,
+                    // but setting the <title> tag is the real solution for the final state.
+                    // await new Promise(resolve => setTimeout(resolve, 10)); // Optional small delay
+                }
+
+                // *** CRITICAL FIX: Properly escape HTML entities for the title AND display ***
+                const escapedQuery = query.replace(/&/g, '&')
+                                          .replace(/</g, '<')
+                                          .replace(/>/g, '>');
+                const truncatedTitleQuery = escapedQuery.substring(0, 60) + (escapedQuery.length > 60 ? '...' : '');
+
+
+                // --- Start writing the new document ---
+                summaryWindow.document.open();
+                summaryWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>AI Summary: ${truncatedTitleQuery}</title>
+                        <style>
+                            /* === Modern Popup Styles === */
+                            :root {
+                                --bg-color: #f0f2f5; /* Light grey background */
+                                --card-bg: #ffffff; /* White content card */
+                                --text-color: #333;
+                                --heading-color: #1a1a1a;
+                                --link-color: #007bff;
+                                --link-hover-color: #0056b3;
+                                --border-color: #e9ecef; /* Lighter border */
+                                --code-bg: #f8f9fa; /* Background for inline code */
+                                --pre-bg: #f1f3f5;  /* Background for code blocks */
+                                --pre-border: #dee2e6;
+                                --shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Softer shadow */
+                            }
+                            body {
+                                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+                                margin: 0;
+                                padding: 20px; /* Add padding around the card */
+                                background-color: var(--bg-color);
+                                color: var(--text-color);
+                                line-height: 1.6;
+                                font-size: 15px;
+                            }
+                            .summary-popup-content {
+                                background-color: var(--card-bg);
+                                border-radius: 10px; /* Slightly more rounded */
+                                box-shadow: var(--shadow);
+                                padding: 25px 30px; /* Increase padding */
+                                border: 1px solid var(--border-color); /* Add subtle border */
+                                max-width: 800px; /* Limit width for readability */
+                                margin: 0 auto; /* Center if window is wider */
+                            }
+                            h1 {
+                                font-size: 1.8em; /* Larger main title */
+                                color: var(--heading-color);
+                                margin-bottom: 15px; /* Space below H1 */
+                                font-weight: 600;
+                                border-bottom: none; /* Remove border if Marked adds one */
+                                margin-top: 0;
+                            }
+                            /* Style for the "Summary" and "References" headings generated by Marked */
+                            h2 {
+                                font-size: 1.3em;
+                                color: var(--heading-color);
+                                border-bottom: 2px solid var(--border-color); /* Cleaner border */
+                                padding-bottom: 0.4em;
+                                margin-top: 2em; /* More space above sections */
+                                margin-bottom: 1.2em;
+                                font-weight: 600;
+                            }
+                            p {
+                                margin: 0 0 1em 0; /* Consistent paragraph spacing */
+                            }
+                            p.query-display strong { /* Style the "Based on query:" part */
+                                color: #555;
+                                font-weight: 600;
+                                margin-right: 5px;
+                            }
+                            hr {
+                                border: 0;
+                                height: 1px;
+                                background-color: var(--border-color);
+                                margin: 2em 0; /* More vertical space */
+                            }
+                            ul, ol {
+                                margin: 1em 0 1.5em 0;
+                                padding-left: 2em; /* Standard indent */
+                            }
+                            li {
+                                margin-bottom: 0.8em; /* Slightly more space between list items */
+                            }
+                            /* Inline Code */
+                            code {
+                                background-color: var(--code-bg);
+                                padding: 3px 6px;
+                                border-radius: 4px;
+                                font-family: Consolas, "Courier New", monospace;
+                                font-size: 0.92em; /* Slightly smaller */
+                                border: 1px solid var(--border-color);
+                            }
+                            /* Code Blocks */
+                            pre {
+                                background-color: var(--pre-bg);
+                                border: 1px solid var(--pre-border);
+                                padding: 12px 15px;
+                                border-radius: 6px;
+                                overflow-x: auto;
+                                font-family: Consolas, "Courier New", monospace;
+                                font-size: 0.92em;
+                                margin: 1.5em 0;
+                                line-height: 1.45;
+                            }
+                            pre code { /* Code inside pre should not have its own background/border */
+                                background-color: transparent;
+                                border: none;
+                                padding: 0;
+                                border-radius: 0;
+                                font-size: inherit; /* Inherit size from pre */
+                            }
+                            blockquote {
+                                border-left: 4px solid var(--link-color); /* Use accent color */
+                                margin: 1.5em 0;
+                                padding: 10px 20px;
+                                color: #555;
+                                background-color: #fdfdff; /* Very slightly different background */
+                            }
+                            a {
+                                color: var(--link-color);
+                                text-decoration: none;
+                                cursor: pointer;
+                                font-weight: 500;
+                                transition: color 0.2s ease; /* Smooth hover */
+                            }
+                            a:hover {
+                                text-decoration: underline;
+                                color: var(--link-hover-color);
+                            }
+                            /* References List Specifics */
+                            .references-list li {
+                                /* You could add more specific styling here if needed */
+                            }
+                            .references-list li a {
+                                margin-right: 8px; /* More space between link and reason */
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="summary-popup-content">
+                            <h1>AI Summary</h1>
+                            <p class="query-display"><strong>Based on query:</strong> ${escapedQuery}</p>
+                            <hr>
+                            ${htmlContent}
+                            <!-- Add class to UL containing references if needed for specific styling -->
+                            <script>
+                                const refHeaders = Array.from(document.querySelectorAll('h2'));
+                                const refList = refHeaders.find(h => h.textContent.trim().toLowerCase() === 'references')?.nextElementSibling;
+                                if (refList && (refList.tagName === 'UL' || refList.tagName === 'OL')) {
+                                    refList.classList.add('references-list');
+                                }
+                            </scr` + `ipt>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                // --- Finish writing ---
+                summaryWindow.document.close();
+            }
+
+
+            async function performAiSummarize() {
+                 const query = aiSearchInput.value.trim();
+                 if (!query) {
+                    alert("Please enter a query in the AI input box to generate a summary.");
+                    aiSearchInput.focus();
+                    return;
+                 }
+                if (!db) { aiStatus.textContent = 'Database not ready.'; return; }
+
+                showLoading(true, 'Summarize');
+                try {
+                    // Fetch *all* cards first to ensure cache is up-to-date
+                    await getAllCardsDb(); // This updates allCardsCache
+
+                    // Filter based on checkbox *before* sending to AI
+                    let cardsToSummarize = allCardsCache;
+                    if (showOpenOnlyCheckbox.checked) {
+                        cardsToSummarize = allCardsCache.filter(card => card.status === 'Open');
+                        const statusMsg = "No 'Open' cards available to summarize for this query.";
+                        if (cardsToSummarize.length === 0) {
+                             aiStatus.textContent = statusMsg;
+                             alert(statusMsg);
+                             showLoading(false, 'Summarize');
+                             return;
+                        }
+                    } else {
+                        const statusMsg = "No cards available to summarize.";
+                         if (cardsToSummarize.length === 0) {
+                             aiStatus.textContent = statusMsg;
+                             alert(statusMsg);
+                              showLoading(false, 'Summarize');
+                             return;
+                        }
+                    }
+
+                    // Prepare data for AI (only the pre-filtered cards)
+                    const cardsForAI = cardsToSummarize.map(c => ({
+                        id: c.id, title: c.title, createdAt: c.createdAt,
+                        status: c.status, priority: c.priority, text: c.text
+                    }));
+
+                    const summaryData = await callGeminiApiForSummary(query, cardsForAI);
+                    console.log("AI Summary Data:", summaryData);
+
+                    // Format and display in popup
+                    const popupHtml = formatSummaryForPopup(summaryData);
+                    displaySummaryPopup(popupHtml, query);
+                    aiStatus.textContent = `Summary generated for query: "${query.substring(0,30)}..."`;
+
+
+                } catch (error) {
+                    console.error("AI Summarize failed:", error);
+                    const message = error.message || "An unknown error occurred.";
+                    alert(`AI Summarize Error: ${message}`);
+                    aiStatus.textContent = `Summarize Error: ${message.length > 60 ? message.substring(0, 60)+'...' : message}`;
+                } finally {
+                    showLoading(false, 'Summarize');
+                }
+            }
+
+            // --- <<< END: AI Summarizer Functions >>> ---
+
 
             // --- Event Listeners ---
 
@@ -1431,13 +1946,23 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
                 if (event.target === editModal) requestCloseModal();
             });
 
-            // Filters & Search
+            // Filters & Search / Summarize
             showOpenOnlyCheckbox.addEventListener('change', () => {
                 // Re-run AI search if active, otherwise just reload based on checkbox
-                aiSearchInput.value.trim() ? performAiSearch() : loadCards(null);
+                 // NOTE: This ONLY reloads based on the checkbox. If an AI search WAS active,
+                 // the user needs to click Search/Summarize again with the new filter setting.
+                 // Re-running search automatically might be confusing or costly.
+                loadCards(null); // Simply reload based on the new checkbox state
             });
             aiSearchBtn.addEventListener('click', performAiSearch);
-            aiSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performAiSearch(); });
+            aiSummarizeBtn.addEventListener('click', performAiSummarize); // <<< NEW: Summarize listener
+            aiSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    // Decide whether Enter should trigger Search or Summarize?
+                    // Let's default to Search for now.
+                    performAiSearch();
+                }
+             });
             aiSearchInput.addEventListener('input', () => { if (aiSearchInput.value.trim() === '') loadCards(null); }); // Clear search on empty
             aiSearchInput.addEventListener('search', () => { if (aiSearchInput.value.trim() === '') loadCards(null); }); // Clear search on 'x' click
 
@@ -1449,6 +1974,13 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
 			// --- Initialization ---
             async function initializeApp() {
                 try {
+                    // Check for Marked library
+                    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+                         console.error("FATAL: Marked.js library not found or failed to load. Markdown rendering will not work.");
+                         alert("Error: Could not load the Markdown rendering library. Please check your internet connection or the console for errors.");
+                         // Optionally disable features that depend on it
+                    }
+
                     await openDb();
                     await loadCards(); // Initial load
                     console.log("Application initialized.");
