@@ -728,6 +728,9 @@
                 // Add event listeners
                 editBtn.addEventListener('click', () => handleEdit(cardData.id));
                 deleteBtn.addEventListener('click', () => handleDelete(cardData.id));
+				
+				// Double-click to edit
+				cardElement.addEventListener('dblclick', () => handleEdit(cardData.id));
 
                 // Drag and Drop listeners for the card itself
                 cardElement.addEventListener('dragstart', handleDragStart);
