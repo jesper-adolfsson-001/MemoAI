@@ -10,7 +10,10 @@
 // - This app stores your data locally in your browser using IndexedDB.
 //   Your notes are not stored or sent anywhere unless you use AI Search.
 
+// You can change the DB_NAME below if you want to switch to another database, your current one will persist so just change the name back.
+
 const CONFIG = {
-    GEMINI_API_KEY: 'ADD-YOUR-KEY-HERE', // <-- Change your key here
-    GEMINI_MODEL: 'gemini-2.0-flash-lite'
+    GEMINI_API_KEY: 'AIzaSyAbKHJ9ISppPuZLP7UTu16OwLoNaiucS0U', // <-- Change your key here
+    GEMINI_MODEL: 'gemini-2.0-flash-lite',
+	DB_NAME: 'MarkdownCardsDB-0003'
 };

@@ -565,7 +565,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             // --- Global Variables ---
-            const dbName = 'MarkdownCardsDB';
+            const dbName = CONFIG.DB_NAME;
             const storeName = 'cards';
             let db;
             let easyMDEInstance = null;
@@ -828,8 +828,9 @@
             // ... (keep existing loadCards function) ...
 			async function loadCards(filterIds = null) {
                 // Clear only cards, keep the indicator line element
-                Array.from(cardContainer.querySelectorAll('.card')).forEach(card => card.remove());
-
+				
+                Array.from(cardContainer.querySelectorAll('.card, .no-cards-message')).forEach(card => card.remove());
+				
                 try {
                     let cardsToRender = allCardsCache.length > 0 && filterIds === null ? allCardsCache : await getAllCardsDb();
 
@@ -864,6 +865,7 @@
                              ? `No cards match the current filters${showOpenOnlyCheckbox.checked ? ' (Open Only + AI Search)' : ' (AI Search)'}.`
                              : `No cards to display${showOpenOnlyCheckbox.checked ? ' (with status Open)' : ''}. Add one!`;
                          const p = document.createElement('p');
+						 p.classList.add('no-cards-message');
                          p.style.color = '#666';
                          p.textContent = message;
                          cardContainer.appendChild(p); // Append message instead of setting innerHTML
@@ -1001,9 +1003,9 @@
                         await updateCardDb(cardData);
                     } else { // Add new card
                         const cards = await getAllCardsDb();
-                        const maxOrder = cards.reduce((max, card) => Math.max(max, card.order || 0), -1);
+                        const minOrder = cards.reduce((min, card) => Math.min(min, card.order || 0), 0);
                         const cardData = {
-                            title, text, order: maxOrder + 1, // Add to end
+                            title, text, order: minOrder - 1, // Assign a lower order number than any existing card
                             createdAt: createdAtISO, status, priority
                          };
                         await addCardDb(cardData);
