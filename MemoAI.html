@@ -159,6 +159,32 @@
             order: var(--order, 0);
             flex-shrink: 0;
         }
+		
+		/* NEW: Private Card Styling */
+        .card.private .card-title,
+        .card.private .card-meta,
+        .card.private .card-content {
+            filter: blur(4px); /* Apply blur effect */
+            transition: filter 0.2s ease-out; /* Smooth transition if needed */
+            user-select: none; /* Prevent text selection */
+            pointer-events: none; /* Prevent interaction with blurred content */
+        }
+
+        /* Optional: Ensure buttons remain clickable */
+        .card.private .card-actions {
+            filter: none; /* Ensure actions are not blurred */
+            pointer-events: auto; /* Restore pointer events for buttons */
+        }
+        /* Optional: Add a subtle indicator */
+        .card.private::before {
+            content: '🔒'; /* Lock emoji or other indicator */
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 1.1em;
+            z-index: 1; /* Ensure it's above blurred content */
+            opacity: 0.6;
+        }
 
         .card.dragging {
             opacity: 0.5;
@@ -285,6 +311,8 @@
         .card-actions .delete-btn:hover {
             background-color: #c82333;
         }
+		
+		
 
         /* === Modal Styling === */
         .modal {
@@ -365,6 +393,20 @@
 			min-width: 160px; /* Prevent shrinking too much */
             margin-bottom: 10px; /* Spacing within the flex row */
 		}
+		
+		/* Give Date field more priority for space */
+		.modal-content .meta-fields .form-group:first-child {
+            flex-grow: 1; /* Allow date field to take up twice the available extra space */
+            /* You could also set a larger flex-basis like: flex: 2 1 200px; */
+        }
+		
+		/* Make checkbox group take minimum space */
+		.modal-content .meta-fields .form-group:last-child {
+            flex-grow: 0;       /* Don't allow it to grow */
+            flex-shrink: 0;     /* Prevent shrinking if possible */
+            flex-basis: auto;   /* Base size on content */
+            min-width: auto;    /* Override the default min-width */
+        }
 
         /* Modal Editor Toolbar */
 		.modal-content .editor-toolbar {
@@ -462,7 +504,7 @@
                     <label for="edit-title">Title:</label>
                     <input type="text" id="edit-title" required>
                 </div>
-                <!-- NEW Metadata Fields -->
+                <!-- Metadata Fields -->
 				<div class="meta-fields">
 					<div class="form-group">
 						<label for="edit-created-at">Date Created:</label>
@@ -475,7 +517,7 @@
 							<option value="Closed">Closed</option>
 						</select>
 					</div>
-					 <div class="form-group">
+					<div class="form-group">
 						<label for="edit-priority">Priority:</label>
 						<select id="edit-priority">
 							<option value="Low">Low</option>
@@ -483,8 +525,13 @@
 							<option value="High">High</option>
 						</select>
 					</div>
+					<div class="form-group">
+						<label for="edit-private" style="margin-bottom: 4px;">Blurr Card</label>
+						<input type="checkbox" id="edit-private" style="width: auto; display: block;">
+						</label>
+					</div>
 				</div>
-                <!-- End NEW Fields -->
+                <!-- NEW Fields -->
                 <div class="form-group">
                     <label for="edit-markdown">Content (Markdown):</label>
                     <textarea id="edit-markdown"></textarea> <!-- EasyMDE will attach here -->
@@ -597,6 +644,7 @@
             const editCreatedAtInput = document.getElementById('edit-created-at');
             const editStatusSelect = document.getElementById('edit-status');
             const editPrioritySelect = document.getElementById('edit-priority');
+			const editPrivateCheckbox = document.getElementById('edit-private');
             const dropLineIndicator = cardContainer.querySelector('.drop-line-indicator'); // Get the line element
 
             // --- AI Configuration ---
@@ -651,7 +699,8 @@
                     order: typeof card.order === 'number' ? card.order : 0,
                     createdAt: card.createdAt || new Date().toISOString(),
                     status: card.status || 'Open',
-                    priority: card.priority || 'Medium'
+                    priority: card.priority || 'Medium',
+					isPrivate: card.isPrivate || false // Default to false
                 };
                 const store = await getStore('readwrite');
                 return new Promise((resolve, reject) => {
@@ -698,7 +747,8 @@
                     ...card,
                     createdAt: card.createdAt || new Date().toISOString(),
                     status: card.status || 'Open',
-                    priority: card.priority || 'Medium'
+                    priority: card.priority || 'Medium',
+					isPrivate: typeof card.isPrivate === 'boolean' ? card.isPrivate : false // Ensure boolean, default false
                  };
 
                 const store = await getStore('readwrite');
@@ -768,7 +818,6 @@
 
 
             // --- Card Rendering ---
-            // ... (keep existing renderCard function) ...
              function renderCard(cardData) {
                 const cardClone = cardTemplate.content.cloneNode(true);
                 const cardElement = cardClone.querySelector('.card');
@@ -797,6 +846,13 @@
 
                 const priority = (cardData.priority || 'Medium').toLowerCase();
 				priorityEl.innerHTML = `<span class="priority-label priority-${priority}">${cardData.priority || 'Medium'}</span>`;
+				
+				// Handle Private status class
+				if (cardData.isPrivate) {
+                    cardElement.classList.add('private');
+                } else {
+                    cardElement.classList.remove('private');
+                }
 
                 // Render Markdown content
                 if (window.marked && typeof window.marked.parse === 'function') {
@@ -897,13 +953,15 @@
                     editCreatedAtInput.value = formatInputDateTimeLocal(card.createdAt || new Date());
                     editStatusSelect.value = card.status || 'Open';
                     editPrioritySelect.value = card.priority || 'Medium';
+					editPrivateCheckbox.checked = card.isPrivate || false; // Set checkbox state
                     originalCardDataBeforeEdit = { // Store original values
                         id: card.id,
                         title: card.title || '',
                         text: card.text || '',
                         createdAt: formatInputDateTimeLocal(card.createdAt || new Date()),
                         status: card.status || 'Open',
-                        priority: card.priority || 'Medium'
+                        priority: card.priority || 'Medium',
+						isPrivate: card.isPrivate || false // Store original private state
                     };
                 } else { // Adding new card
                     modalTitle.textContent = "Add New Card";
@@ -912,7 +970,11 @@
                     editCreatedAtInput.value = formatInputDateTimeLocal(new Date()); // Set current date
                     editStatusSelect.value = 'Open';
                     editPrioritySelect.value = 'Medium';
-                    originalCardDataBeforeEdit = { isNew: true };
+					editPrivateCheckbox.checked = false; // Default for new card
+                    originalCardDataBeforeEdit = { 
+						isNew: true,
+						isPrivate: false
+					};
                 }
 
                 editModal.style.display = 'block';
@@ -940,18 +1002,20 @@
                 const currentCreatedAt = editCreatedAtInput.value;
                 const currentStatus = editStatusSelect.value;
                 const currentPriority = editPrioritySelect.value;
+				const currentIsPrivate = editPrivateCheckbox.checked;
 
                 if (originalCardDataBeforeEdit.isNew) {
                     // Check if anything significant was entered for a new card
                     return currentTitle !== '' || currentText.trim() !== '' ||
-                           currentStatus !== 'Open' || currentPriority !== 'Medium'; // Check if defaults changed
+                           currentStatus !== 'Open' || currentPriority !== 'Medium' || currentIsPrivate !== false; // Check if defaults changed
                 } else {
                     // Compare with stored original values for existing card
                     return currentTitle !== originalCardDataBeforeEdit.title ||
                            currentText !== originalCardDataBeforeEdit.text ||
                            currentCreatedAt !== originalCardDataBeforeEdit.createdAt ||
                            currentStatus !== originalCardDataBeforeEdit.status ||
-                           currentPriority !== originalCardDataBeforeEdit.priority;
+                           currentPriority !== originalCardDataBeforeEdit.priority ||
+						   currentIsPrivate !== originalCardDataBeforeEdit.isPrivate;
                 }
             }
 
@@ -991,6 +1055,7 @@
                 } catch (e) { console.error("Invalid date from input, using current time.", e) }
                 const status = editStatusSelect.value;
                 const priority = editPrioritySelect.value;
+				const isPrivate = editPrivateCheckbox.checked;
 
                 try {
                      if (id) { // Update existing card
@@ -998,7 +1063,7 @@
                         if (!existingCard) throw new Error(`Card with ID ${id} not found for update.`);
                         const cardData = {
                              id: Number(id), title, text, order: existingCard.order, // Keep existing order
-                             createdAt: createdAtISO, status, priority
+                             createdAt: createdAtISO, status, priority, isPrivate
                         };
                         await updateCardDb(cardData);
                     } else { // Add new card
@@ -1006,7 +1071,7 @@
                         const minOrder = cards.reduce((min, card) => Math.min(min, card.order || 0), 0);
                         const cardData = {
                             title, text, order: minOrder - 1, // Assign a lower order number than any existing card
-                            createdAt: createdAtISO, status, priority
+                            createdAt: createdAtISO, status, priority, isPrivate
                          };
                         await addCardDb(cardData);
                     }
@@ -1057,13 +1122,12 @@
 
 
             // --- Import/Export ---
-            // ... (keep existing handleExport and handleImport functions) ...
-             async function handleExport() {
+            async function handleExport() {
                 try {
                     const cards = await getAllCardsDb();
                     const cardsToExport = cards.map(c => ({ // Ensure all needed fields are present
                          id: c.id, title: c.title, text: c.text, order: c.order,
-                         createdAt: c.createdAt, status: c.status, priority: c.priority
+                         createdAt: c.createdAt, status: c.status, priority: c.priority, isPrivate: c.isPrivate || false // Include isPrivate, default false
                     }));
                     const dataStr = JSON.stringify(cardsToExport, null, 2);
                     const blob = new Blob([dataStr], { type: 'application/json' });
