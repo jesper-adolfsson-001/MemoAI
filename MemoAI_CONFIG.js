@@ -14,6 +14,7 @@
 
 const CONFIG = {
     GEMINI_API_KEY: 'ADD-YOUR-KEY-HERE', // <-- Change your key here
-    GEMINI_MODEL: 'gemini-2.0-flash-lite',
-	DB_NAME: 'MarkdownCardsDB-0003'
+    GEMINI_MODEL_SEARCH: 'gemini-2.0-flash-lite', // use a simple model for fast searching
+    GEMINI_MODEL_SUMMARIZE: 'gemini-2.0-flash', // use a better model for summarising notes	
+    DB_NAME: 'MarkdownCardsDB' // change name to use different database, change back to use previous ones
 };
