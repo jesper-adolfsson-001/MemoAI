@@ -881,6 +881,52 @@
                 cardContainer.appendChild(cardElement);
                 return cardElement;
             }
+			
+			
+			function updateCardElement(cardElement, cardData) {
+                if (!cardElement || !cardData) return;
+
+                const titleElement = cardElement.querySelector('.card-title');
+                const contentElement = cardElement.querySelector('.card-content');
+                const createdAtEl = cardElement.querySelector('.card-created span');
+                const statusEl = cardElement.querySelector('.card-status span');
+                const priorityEl = cardElement.querySelector('.card-priority span');
+
+                // Update Title
+                titleElement.textContent = cardData.title || 'Untitled';
+
+                // Update Metadata
+                createdAtEl.textContent = formatDisplayDate(cardData.createdAt);
+                const status = cardData.status || 'Open';
+                statusEl.textContent = status;
+                if (status.toLowerCase() === 'closed') {
+                    cardElement.classList.add('status-closed');
+                } else {
+                    cardElement.classList.remove('status-closed');
+                }
+
+                const priority = (cardData.priority || 'Medium').toLowerCase();
+                priorityEl.innerHTML = `<span class="priority-label priority-${priority}">${cardData.priority || 'Medium'}</span>`;
+
+                // Update Private status class
+                if (cardData.isPrivate) {
+                    cardElement.classList.add('private');
+                } else {
+                    cardElement.classList.remove('private');
+                }
+
+                // Update Markdown content
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    marked.use({ breaks: true, gfm: true });
+                    contentElement.innerHTML = marked.parse(cardData.text || '');
+                } else {
+                    contentElement.textContent = cardData.text || ''; // Fallback
+                }
+
+                // NOTE: We don't need to update data-id, order, or re-attach event listeners here
+                // as those are assumed to be stable during an edit.
+                console.log(`Card element ID ${cardData.id} updated visually.`);
+            }
 
 
             // --- Card Loading & Filtering ---
@@ -1062,25 +1108,62 @@
 
                 try {
                      if (id) { // Update existing card
-                        const existingCard = await getCardDb(id);
-                        if (!existingCard) throw new Error(`Card with ID ${id} not found for update.`);
-                        const cardData = {
-                             id: Number(id), title, text, order: existingCard.order, // Keep existing order
+                        const cardId = Number(id);
+                        const existingCard = await getCardDb(cardId);
+                        if (!existingCard) throw new Error(`Card with ID ${cardId} not found for update.`);
+
+                        // Prepare the updated data object (same as before)
+                        const updatedCardData = {
+                             id: cardId, title, text, order: existingCard.order, // Keep existing order
                              createdAt: createdAtISO, status, priority, isPrivate
                         };
-                        await updateCardDb(cardData);
-                    } else { // Add new card
+
+                        // Save to Database
+                        await updateCardDb(updatedCardData);
+                        console.log(`Card ID ${cardId} updated in DB.`);
+
+                        // ---- START: Update DOM and Cache directly ----
+                        // Find the card element in the DOM
+                        const cardElement = cardContainer.querySelector(`.card[data-id="${cardId}"]`);
+
+                        // Update the visual element IF it exists in the current view
+                        if (cardElement) {
+                            updateCardElement(cardElement, updatedCardData);
+                        } else {
+                            console.log(`Card ID ${cardId} was updated in DB but not found in current DOM view (likely filtered out).`);
+                        }
+
+                        // Update the specific card in the cache
+                        const cacheIndex = allCardsCache.findIndex(card => card.id === cardId);
+                        if (cacheIndex !== -1) {
+                            allCardsCache[cacheIndex] = updatedCardData;
+                            console.log(`Card ID ${cardId} updated in cache.`);
+                        } else {
+                            // Card wasn't in cache (maybe loaded before cache populated?), invalidate fully just in case.
+                            console.warn(`Card ID ${cardId} updated but not found in cache. Invalidating cache.`);
+                            allCardsCache = [];
+                            // Optionally trigger a full load if not found in cache, though ideally it should be there.
+                            // await loadCards(); // Uncomment this line if you prefer a full refresh as a fallback here.
+                        }
+                        // ---- END: Update DOM and Cache directly ----
+
+                        closeEditModal(); // Close modal after successful update
+
+                    } else { // Add new card (Keep existing logic for adding)
                         const cards = await getAllCardsDb();
                         const minOrder = cards.reduce((min, card) => Math.min(min, card.order || 0), 0);
                         const cardData = {
-                            title, text, order: minOrder - 1, // Assign a lower order number than any existing card
+                            title, text, order: minOrder - 1, // Assign a lower order number
                             createdAt: createdAtISO, status, priority, isPrivate
                          };
-                        await addCardDb(cardData);
+                        const newCardId = await addCardDb(cardData); // Get the ID if needed
+                        console.log(`New card added with ID: ${newCardId}`);
+
+                        // For ADDING a card, we STILL invalidate cache and do a full reload
+                        closeEditModal();
+                        allCardsCache = []; // Invalidate cache
+                        await loadCards(); // Reload cards fully to include the new one correctly ordered
                     }
-                    closeEditModal(); // Close after successful save
-                    allCardsCache = []; // Invalidate cache
-                    await loadCards(); // Reload cards
                 } catch (error) {
                     console.error("Error saving card:", error);
                     alert(`Failed to save card: ${error.message}`);
