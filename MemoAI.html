@@ -378,6 +378,7 @@
         }
          .modal-content .CodeMirror {
               border: none; /* Remove default CodeMirror border */
+			  height: 500px !important;
          }
 
 
@@ -527,12 +528,11 @@
 						</select>
 					</div>
 					<div class="form-group">
-						<label for="edit-private" style="margin-bottom: 4px;">Blurr Card</label>
+						<label for="edit-private" style="margin-bottom: 4px;">Blur Card</label>
 						<input type="checkbox" id="edit-private" style="width: auto; display: block;">
 						</label>
 					</div>
 				</div>
-                <!-- NEW Fields -->
                 <div class="form-group">
                     <label for="edit-markdown">Content (Markdown):</label>
                     <textarea id="edit-markdown"></textarea> <!-- EasyMDE will attach here -->
@@ -650,8 +650,10 @@
 
             // --- AI Configuration ---
             const GEMINI_API_KEY = CONFIG.GEMINI_API_KEY;
-            const GEMINI_MODEL = CONFIG.GEMINI_MODEL;
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+            const GEMINI_MODEL_SEARCH = CONFIG.GEMINI_MODEL_SEARCH;
+			const GEMINI_MODEL_SUMMARIZE = CONFIG.GEMINI_MODEL_SUMMARIZE;
+            const GEMINI_API_URL_SEARCH = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_SEARCH}:generateContent?key=${GEMINI_API_KEY}`;
+			const GEMINI_API_URL_SUMMARIZE = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_SUMMARIZE}:generateContent?key=${GEMINI_API_KEY}`;
             let allCardsCache = []; // Cache for filtering
 
 
@@ -1474,7 +1476,7 @@ Do NOT include explanations or markdown formatting. Just the JSON array of IDs.
 
                 try {
                     console.log("Calling Gemini API for Search...");
-                    const response = await fetch(GEMINI_API_URL, {
+                    const response = await fetch(GEMINI_API_URL_SEARCH, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1651,7 +1653,7 @@ Important Constraints:
 
                 try {
                     console.log("Calling Gemini API for Summary...");
-                    const response = await fetch(GEMINI_API_URL, {
+                    const response = await fetch(GEMINI_API_URL_SUMMARIZE, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
